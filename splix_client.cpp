@@ -3,15 +3,61 @@
 #include <signal.h>
 #include <string.h>
 #include <unistd.h>
+#include <queue>
 #include "unp.h"
-
 using namespace std;
+
+// functions
+WINDOW *create_newwin(int height, int width, int starty, int startx);
+WINDOW *get_name_window(int height, int width);
+void get_name_and_greet(WINDOW *win);
+void fill_territory(int corner_y, int corner_x, WINDOW *win);
+int check_territory(int corner_y, int corner_x, WINDOW *win);
+void game_loop(WINDOW *win);
+void initial_game();
+void exit_game(WINDOW *win, int flag);
+
 // size of windows
 int height_win1 = 10, width_win1 = 100;
 const int height_win2 = 30, width_win2 = 100;
+
 // id allocate by server
 int id = 1;
 int map[height_win2][width_win2];
+
+int main()
+{
+    // signal(SIGWINCH, SIG_IGN); /* ignore window size changes */
+    initscr();
+    start_color();
+    cbreak();             // disable line buffering, but allow signals(ctrl+c, ctrl+z, etc.)
+    keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
+    init_pair(1, COLOR_RED, COLOR_BLACK);
+    init_pair(2, COLOR_YELLOW, COLOR_BLACK);
+    init_pair(3, COLOR_BLACK, COLOR_WHITE);
+    // windows
+    while (true)
+    {
+        initial_game();
+        // after game over
+        mvwprintw(stdscr, 0, 0, "Game Over. Press 'r' to restart or 'q' to quit.");
+        refresh();
+
+        int ch = getch();
+        if (ch == 'q')
+        {
+            break; // Exit the loop, ending the program
+        }
+        else if (ch != 'r')
+        {
+            break; // Default behavior is to exit unless 'r' is pressed
+        }
+    }
+    endwin();
+    return 0;
+}
+
+// functions
 WINDOW *create_newwin(int height, int width, int starty, int startx)
 {
     // int yMax, xMax;
@@ -63,76 +109,96 @@ void get_name_and_greet(WINDOW *win)
     wgetch(win); // wait for next character, or it will skip the greeting msg
     */
 }
-void check_valid_move(int &corner_y, int &corner_x)
+void create_initial_territory(WINDOW *win, int corner_y, int corner_x)
 {
-    if (corner_y < 1)
-        corner_y = 1;
-    if (corner_y > height_win2 - 2)
-        corner_y = height_win2 - 2;
-    if (corner_x < 1)
-        corner_x = 1;
-    if (corner_x > width_win2 - 2)
-        corner_x = width_win2 - 2;
+    // create initial territory
+    // 1. create a rectangle
+    // 2. fill the rectangle with the player's -id
+    // 3. send the map to the server
+    int dx[] = {0, 1, 0, -1};
+    int dy[] = {1, 0, -1, 0};
+    for (int i = 0; i < 4; i++)
+    {
+        int cur_x = corner_x + dx[i];
+        for (int j = 0; j < 4; j++)
+        {
+            int cur_y = corner_y + dy[j];
+            if (map[cur_y][cur_x] == -id || cur_x < 1 || cur_x > width_win2 - 2 || cur_y < 1 || cur_y > height_win2 - 2)
+                continue;
+            mvwprintw(win, cur_y, cur_x, "@");
+            map[cur_y][cur_x] = -id;
+        }
+    }
+    // send map to server
 }
+void fill_territory(int corner_y, int corner_x, WINDOW *win)
+{
+    // fill territory
+    // flood fill algorithm
+    // 1. check if the current cell is empty or not
+    // 2. if empty, fill it and check the 4 adjacent cells
+    // 3. if not empty, return
+    queue<pair<int, int>> q;
+    q.push({corner_y, corner_x});
+    while (!q.empty())
+    {
+        pair<int, int> cur = q.front();
+        q.pop();
+        // check out of bound and if the cell is filled or not condition
+        if (cur.first < 1 || cur.first > height_win2 - 2 || cur.second < 1 || cur.second > width_win2 - 2 || map[cur.first][cur.second] == -id)
+            continue;
+        // if the cell reaches the trail, fill it
+        else if (map[cur.first][cur.second] == id)
+        {
+            map[cur.first][cur.second] = -id;
+            mvwprintw(win, cur.first, cur.second, "@");
+            continue;
+        }
+        map[cur.first][cur.second] = -id;
+        mvwprintw(win, cur.first, cur.second, "@");
+        q.push({cur.first + 1, cur.second});
+        q.push({cur.first - 1, cur.second});
+        q.push({cur.first, cur.second + 1});
+        q.push({cur.first, cur.second - 1});
+    }
+    // send map to server
+}
+int check_territory(int corner_y, int corner_x, WINDOW *win)
+{
+    // three cases
+    //  1. empty territory or other player's territory
+    //  2. territory of the player(-id), fill territory
+    //  3. trail of the player(id), die
 
-void exit_game(WINDOW *win, int flag)
-{
-    // send to server
-    for (int i = 0; i < height_win2; i++)
-    {
-        for (int j = 0; j < width_win2; j++)
-        {
-            if (map[i][j] == id)
-            {
-                map[i][j] = 0;
-            }
-        }
-    }
-    // animation
-    if (flag == 1) // normal exit
-    {
-        // animation
-        char msg[20];
-        for (int i = 0; i < 3; i++)
-        {
-            for (int j = 3; j >= 0; j--)
-            {
-                werase(win);
-                box(win, 0, 0);
-                snprintf(msg, 11 - j, "Exiting...");
-                mvwprintw(win, 1, width_win2 / 2 - 4, "%s", msg);
-                wrefresh(win);
-                usleep(500000);
-            }
-        }
-    }
-    else // die
-    {
-        werase(win);
-        box(win, 0, 0);
-        mvwprintw(win, 1, width_win2 / 2 - 4, "You died!");
-        wrefresh(win);
-        sleep(1);
-    }
-}
-void check_territory(int corner_y, int corner_x, WINDOW *win)
-{
+    // touch the trail
     if (map[corner_y][corner_x] == id)
     {
         exit_game(win, 0); // die
+        return 0;
     }
-    else // fill the territory
+    // touch own territory, fill it
+    if (map[corner_y][corner_x] == -id)
     {
+        // fill territory
+        fill_territory(corner_y, corner_x, win);
+        return 1;
     }
+    // empty territory or others' territory (normal case)
+    map[corner_y][corner_x] = id;
+    return 1;
 }
 void game_loop(WINDOW *win)
 {
-    char ch;
-    int corner_x = 1, corner_y = 1;
+    int ch; // use int to store the character like key_up, key_down, etc.
+
+    // initial position
+    int corner_x = 5, corner_y = 5;
+
     // default direction
     pair<int, int> direction; // y and x
     direction.first = 0;
     direction.second = 1;
+
     // get map from server
     for (int i = 0; i < height_win2; i++)
     {
@@ -144,9 +210,14 @@ void game_loop(WINDOW *win)
     map[corner_y][corner_x] = id;
 
     wattron(win, COLOR_PAIR(1) | A_BOLD);
+    // create initial territory
+    create_initial_territory(win, corner_y, corner_x);
     mvwprintw(win, corner_y, corner_x, "O"); // character
     wrefresh(win);
+
     nodelay(win, TRUE); // Non-blocking input
+
+    // gaming
     for (;;)
     {
         if ((ch = wgetch(win)))
@@ -164,7 +235,7 @@ void game_loop(WINDOW *win)
                 direction.first = -1;
                 direction.second = 0;
                 break;
-            case 's':   
+            case 's':
             case KEY_DOWN:
                 if (corner_y == height_win2 - 2)
                     break;
@@ -189,42 +260,80 @@ void game_loop(WINDOW *win)
                 break;
             }
         }
+        // print trail
         mvwprintw(win, corner_y, corner_x, "#");
+
+        // update position
         corner_y += direction.first;
         corner_x += direction.second;
 
-        check_valid_move(corner_y, corner_x);
-        //check_territory(corner_y, corner_x, win);
-
+        // check if the player is out of bound
+        if (corner_y < 1 || corner_y >= height_win2 - 2 || corner_x < 1 || corner_x > width_win2 - 2)
+        {
+            exit_game(win, 0); // die
+            return;
+        }
+        //die if the player dies touch his own trail
+        if (!check_territory(corner_y, corner_x, win))
+            return;
+        
         mvwprintw(win, corner_y, corner_x, "O");
-        map[corner_y][corner_x] = id;
         wrefresh(win);
-
-        usleep(100000); // Sleep for 0.1sec, speed of the game
+        usleep(200000); // Sleep for 0.1sec, speed of the game
     }
 }
-int main()
+void initial_game()
 {
-    signal(SIGWINCH, SIG_IGN); /* ignore window size changes */
-    initscr();
-    start_color();
-    cbreak();             // disable line buffering, but allow signals(ctrl+c, ctrl+z, etc.)
-    keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
-    init_pair(1, COLOR_RED, COLOR_BLACK);
-    init_pair(2, COLOR_YELLOW, COLOR_BLACK);
-    init_pair(3, COLOR_BLACK, COLOR_WHITE);
-    // windows
-
     WINDOW *win1 = create_newwin(height_win1, width_win1, 0, 0); // size and location
     get_name_and_greet(win1);
-
+    delwin(win1);
     // game loop
     noecho(); // disable displaying inputq
     WINDOW *win2 = create_newwin(height_win2, width_win2, 0, 0);
     keypad(win2, TRUE);
     game_loop(win2);
     echo(); // enable displaying input again
-    sleep(1);
-    endwin();
-    return 0;
+    delwin(win2);
+}
+void exit_game(WINDOW *win, int flag)
+{
+    // send to server
+    for (int i = 0; i < height_win2; i++)
+    {
+        for (int j = 0; j < width_win2; j++)
+        {
+            if (map[i][j] == -id)
+            {
+                map[i][j] = 0;
+            }
+        }
+    }
+    // animation
+    if (flag == 1) // normal exit
+    {
+        // animation
+        char msg[20];
+        for (int i = 0; i < 3; i++)
+        {
+            for (int j = 3; j >= 0; j--)
+            {
+                werase(win);
+                box(win, 0, 0);
+                snprintf(msg, 11 - j, "Exiting...");
+                mvwprintw(win, 1, width_win2 / 2 - 4, "%s", msg);
+                wrefresh(win);
+                usleep(500000);
+            }
+        }
+        return;
+    }
+    else // die
+    {
+        werase(win);
+        box(win, 0, 0);
+        mvwprintw(win, 1, width_win2 / 2 - 4, "You died!");
+        wrefresh(win);
+        sleep(1);
+        return;
+    }
 }
