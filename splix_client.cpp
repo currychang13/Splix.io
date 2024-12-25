@@ -10,6 +10,7 @@ using namespace std;
 // functions
 WINDOW *create_newwin(int height, int width, int starty, int startx);
 WINDOW *get_name_window(int height, int width);
+void get_user_input(WINDOW *win, char *name);
 void get_name_and_greet(WINDOW *win);
 void fill_territory(int corner_y, int corner_x, WINDOW *win);
 int check_territory(int corner_y, int corner_x, WINDOW *win);
