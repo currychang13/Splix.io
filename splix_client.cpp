@@ -10,6 +10,7 @@ using namespace std;
 // functions
 WINDOW *create_newwin(int height, int width, int starty, int startx);
 WINDOW *get_name_window(int height, int width);
+void get_user_input(WINDOW *win, char *name);
 void get_name_and_greet(WINDOW *win);
 void fill_territory(int corner_y, int corner_x, WINDOW *win);
 int check_territory(int corner_y, int corner_x, WINDOW *win);
@@ -40,7 +41,7 @@ int main()
     {
         initial_game();
         // after game over
-        mvwprintw(stdscr, 0, 0, "Game Over. Press 'r' to restart or 'q' to quit.");
+        /*mvwprintw(stdscr, 0, 0, "Game Over. Press 'r' to restart or 'q' to quit.");
         refresh();
 
         int ch = getch();
@@ -51,7 +52,7 @@ int main()
         else if (ch != 'r')
         {
             break; // Default behavior is to exit unless 'r' is pressed
-        }
+        }*/
     }
     endwin();
     return 0;
@@ -132,6 +133,76 @@ void render_game(WINDOW *win, int corner_y, int corner_x)
     wrefresh(win);
 }
 
+void get_user_input(WINDOW *win, char *name)
+{
+    echo(); // enable displaying input
+    keypad(win, TRUE);
+    wmove(win, 1, 1);
+    int ch, i = 0, cursor_position = 1;
+    while ((ch = wgetch(win)) != '\n')
+    {
+        if (i == 0)
+        {
+            mvwprintw(win, 1, 1, "                ");
+        }
+        if (ch == KEY_BACKSPACE)
+        {
+            if (cursor_position > 1)
+            {
+                // Shift characters to the left
+                for (int j = cursor_position - 1; j < i; j++)
+                {
+                    name[j - 1] = name[j];
+                }
+
+                i--;            // Reduce string length
+                name[i] = '\0'; // Null-terminate the string
+
+                cursor_position--;                 // Move cursor position back
+                mvwprintw(win, 1, 1, "%s ", name); // Redraw string and clear last char
+                wmove(win, 1, cursor_position);    // Set cursor position
+                wrefresh(win);
+            }
+            else
+            {
+                wmove(win, 1, 1);
+                continue;
+            }
+        }
+        else if (ch == KEY_LEFT || ch == KEY_RIGHT || ch == KEY_UP || ch == KEY_DOWN)
+        {
+            switch (ch)
+            {
+            case KEY_LEFT:
+                if (cursor_position > 1)
+                    wmove(win, 1, --cursor_position);
+                break;
+            case KEY_RIGHT:
+                if (cursor_position <= (int)strlen(name))
+                    wmove(win, 1, ++cursor_position);
+                break;
+            default:
+                break;
+            }
+        }
+        else
+        {
+            for (int j = i; j >= cursor_position - 1; j--)
+            {
+                name[j + 1] = name[j];
+            }
+            name[cursor_position - 1] = ch;
+
+            i++;               // Increase string length
+            cursor_position++; // Move cursor position forward
+
+            mvwprintw(win, 1, 1, "%s", name); // Redraw string
+            wmove(win, 1, cursor_position);   // Set cursor position
+            wrefresh(win);
+        }
+    }
+    noecho(); // disable displaying input
+}
 void get_name_and_greet(WINDOW *win)
 {
     // get window size
@@ -145,8 +216,9 @@ void get_name_and_greet(WINDOW *win)
     // create input window
     WINDOW *name_win = get_name_window(rows, cols);
     // get name
-    char name[50];
-    mvwscanw(name_win, 1, 1, "%50s", name); // after that, send to server
+    char name[50] = "";
+    get_user_input(name_win, name);
+    // after that, send to server
     delwin(name_win);
     // greet
     /*char msg[100];
@@ -247,6 +319,7 @@ int check_territory(int corner_y, int corner_x, WINDOW *win)
 }
 void game_loop(WINDOW *win)
 {
+    keypad(win, TRUE);
     int ch; // use int to store the character like key_up, key_down, etc.
 
     // initial position
@@ -348,7 +421,6 @@ void initial_game()
     // game loop
     noecho(); // disable displaying inputq
     WINDOW *win2 = create_newwin(height_win2, width_win2, 0, 0);
-    keypad(win2, TRUE);
     game_loop(win2);
     echo(); // enable displaying input again
     delwin(win2);
@@ -391,7 +463,9 @@ void exit_game(WINDOW *win, int flag)
         box(win, 0, 0);
         mvwprintw(win, 1, width_win2 / 2 - 4, "You died!");
         wrefresh(win);
-        sleep(1);
+        sleep(2);
+        werase(win);
+        wrefresh(win);
         return;
     }
 }

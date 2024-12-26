@@ -1,5 +1,5 @@
 include ../Make.defines
-PROGS = splix_client test 
+PROGS = splix_client  
 .PHONY: all clean
 
 all:$(PROGS)
