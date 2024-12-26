@@ -7,6 +7,10 @@
 #include "unp.h"
 using namespace std;
 
+
+#define map_height 600
+#define map_width 600
+
 // functions
 void render_game(WINDOW *win, int corner_y, int corner_x);
 WINDOW *create_newwin(int height, int width, int starty, int startx);
@@ -25,7 +29,7 @@ const int height_win2 = 30, width_win2 = 100;
 
 // id allocate by server
 const int id = 1;
-int map[600][600];
+int map[map_height][map_width];
 
 int main()
 {
@@ -62,78 +66,73 @@ int main()
 }
 
 // functions
-void render_game(WINDOW *win, int corner_y, int corner_x)
+void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
 {
     int win_rows, win_cols;
     getmaxyx(win, win_rows, win_cols);
+
     // Determine half the window size
     int half_rows = win_rows / 2;
     int half_cols = win_cols / 2;
 
-    // Calculate the top-left corner of the rendering area
-    int upperbound = corner_y - half_rows; // upper bound of the rendering area
-    int leftbound = corner_x - half_cols;  // left bound of the rendering area
-    int rightbound = corner_x + half_cols; // right bound
-    int lowerbound = corner_y + half_rows; // lower bound
+    // Calculate the top-left corner of the rendering area, relative to the window
+    int start_y = coordinate_y - half_rows;
+    int start_x = coordinate_x - half_cols;
+
     // Adjust the rendering area to stay within map boundaries
-    if (upperbound < 1)
-        upperbound = 1;
-    if (leftbound < 1)
-        leftbound = 1;
-    if (rightbound > width_win2 - 2)
-        rightbound = width_win2 - 2;
-    if (lowerbound > height_win2 - 2)
-        lowerbound = height_win2 - 2;
+    if (start_y < 0) start_y = 0;
+    if (start_x < 0) start_x = 0;
+    if (start_y + win_rows > height_win2) start_y = height_win2 - win_rows;
+    if (start_x + win_cols > width_win2) start_x = width_win2 - win_cols;
 
     // Clear the window and redraw the border
     werase(win);
     box(win, 0, 0);
-    queue<pair<int, int>> q;
-    q.push({corner_y, corner_x});
+
     // Render the visible portion of the map
-    while (!q.empty())
-    {
-        pair<int, int> cur = q.front();
-        q.pop();
-        // check out of bound and if the cell is filled or not condition
-        if (cur.first < upperbound || cur.first > lowerbound || cur.second < leftbound || cur.second > rightbound)
-            continue;
-        if (cur.first == corner_y && cur.second == corner_x)
-        {
-            wattron(win, COLOR_PAIR(id));
-            mvwprintw(win, cur.first, cur.second, "O");
-            wattroff(win, COLOR_PAIR(id));
-        }
-        else
-        {
-            switch (map[cur.first][cur.second])
-            {
-            case -id:
-                wattron(win, COLOR_PAIR(id));
-                mvwprintw(win, cur.first, cur.second, "@");
-                wattroff(win, COLOR_PAIR(id));
-                break;
-            case id:
-                wattron(win, COLOR_PAIR(id));
-                mvwprintw(win, cur.first, cur.second, "#");
-                wattroff(win, COLOR_PAIR(id));
-                break;
-            case 0:
-                wattron(win, COLOR_PAIR(3));
-                mvwprintw(win, cur.first, cur.second, ".");
-                wattroff(win, COLOR_PAIR(3));
-                break;
-            default:
-                break;
+    for (int i = 0; i < win_rows - 2; i++) {
+        for (int j = 0; j < win_cols - 2; j++) {
+            int map_y = start_y + i;
+            int map_x = start_x + j;
+
+            // Skip out-of-bound map cells
+            if (map_y < 0 || map_y >= height_win2 || map_x < 0 || map_x >= width_win2)
+                continue;
+
+            // Determine the character to render based on map values
+            char symbol;
+            switch (map[map_y][map_x]) {
+                case 0:
+                    symbol = '.'; // Empty space
+                    wattron(win, COLOR_PAIR(3));
+                    break;
+                case -id:
+                    symbol = '@'; // Filled territory
+                    wattron(win, COLOR_PAIR(id));
+                    break;
+                case id:
+                    symbol = '#'; // Player trail
+                    wattron(win, COLOR_PAIR(id));
+                    break;
+                default:
+                    symbol = '?'; // Undefined
+                    wattron(win, COLOR_PAIR(3));
+                    break;
             }
+
+            // Render the character or cell
+            if (map_y == coordinate_y && map_x == coordinate_x) {
+                symbol = 'O'; // Player
+            }
+            mvwaddch(win, i + 1, j + 1, symbol);
+            wattroff(win, COLOR_PAIR(3) | COLOR_PAIR(id));
         }
-        wrefresh(win);
-        q.push({cur.first + 1, cur.second});
-        q.push({cur.first - 1, cur.second});
-        q.push({cur.first, cur.second + 1});
-        q.push({cur.first, cur.second - 1});
     }
+
+    // Refresh the window after rendering
+    wrefresh(win);
 }
+
 
 WINDOW *create_newwin(int height, int width, int starty, int startx)
 {
@@ -312,7 +311,7 @@ void fill_territory(int corner_y, int corner_x, WINDOW *win)
     render_game(win, corner_y, corner_x);
     // send map to server
 }
-int check_and_update_territory(int corner_y, int corner_x, WINDOW *win)
+int check_and_update_territory(int coordinate_y, int coordinate_x, WINDOW *win)
 {
     // three cases
     //  1. empty territory or other player's territory
@@ -320,21 +319,21 @@ int check_and_update_territory(int corner_y, int corner_x, WINDOW *win)
     //  3. trail of the player(id), die
 
     // touch the trail
-    if (map[corner_y][corner_x] == id)
+    if (map[coordinate_y][coordinate_x] == id)
     {
         exit_game(win, 0); // die
         return 0;
     }
     // touch own territory
-    if (map[corner_y][corner_x] == -id)
+    if (map[coordinate_y][coordinate_x] == -id)
     {
         // if circled, fill territory
-        fill_territory(corner_y, corner_x, win);
+        fill_territory(coordinate_y, coordinate_x, win);
         return 1;
     }
     // empty territory or others' territory (normal case)
-    map[corner_y][corner_x] = id;
-    render_game(win, corner_y, corner_x);
+    map[coordinate_y][coordinate_x] = id;
+    render_game(win, coordinate_y, coordinate_x);
     return 1;
 }
 void game_loop(WINDOW *win)
@@ -342,8 +341,8 @@ void game_loop(WINDOW *win)
     keypad(win, TRUE);
     int ch; // use int to store the character like key_up, key_down, etc.
 
-    // initial position
-    int corner_x = 5, corner_y = 5;
+    // initial position(coordinates)
+    int coordinate_x = 5, coordinate_y = 5;
 
     // default direction
     pair<int, int> direction; // y and x
@@ -351,21 +350,21 @@ void game_loop(WINDOW *win)
     direction.second = 1;
 
     // get map from server
-    for (int i = 0; i < height_win2; i++)
+    for (int i = 0; i < map_height; i++)
     {
-        for (int j = 0; j < width_win2; j++)
+        for (int j = 0; j < map_width; j++)
         {
             map[i][j] = 0;
         }
     }
-    map[corner_y][corner_x] = id;
+    map[coordinate_y][coordinate_x] = id;
 
     wattron(win, COLOR_PAIR(1) | A_BOLD);
     // create initial territory
-    create_initial_territory(win, corner_y, corner_x);
+    create_initial_territory(win, coordinate_y, coordinate_x);
 
     nodelay(win, TRUE); // Non-blocking input
-    render_game(win, corner_y, corner_x);
+    render_game(win, coordinate_y, coordinate_x);
     // gaming
     for (;;)
     {
@@ -410,18 +409,19 @@ void game_loop(WINDOW *win)
             }
         }
         // update position
-        corner_y += direction.first;
-        corner_x += direction.second;
+        coordinate_y += direction.first;
+        coordinate_x += direction.second;
 
         // check if the player is out of bound
-        if (corner_y < 1 || corner_y >= height_win2 - 2 || corner_x < 1 || corner_x > width_win2 - 2)
+        if (coordinate_y < 1 || coordinate_y >= map_height || coordinate_x < 1 || coordinate_x > map_width)
         {
             exit_game(win, 0); // die
             return;
         }
         // die if the player dies touch his own trail
-        if (!check_and_update_territory(corner_y, corner_x, win))
+        if (!check_and_update_territory(coordinate_y, coordinate_x, win))
             return;
+        render_game(win, coordinate_y, coordinate_x);
         usleep(200000); // Sleep for 0.1sec, speed of the game
     }
 }
