@@ -22,7 +22,7 @@ int height_win1 = 10, width_win1 = 100;
 const int height_win2 = 30, width_win2 = 100;
 
 // id allocate by server
-int id = 1;
+const int id = 1;
 int map[height_win2][width_win2];
 
 int main()
@@ -76,6 +76,62 @@ WINDOW *get_name_window(int height, int width)
     wrefresh(win);
     return win;
 }
+void render_game(WINDOW *win, int corner_y, int corner_x)
+{
+    int win_rows, win_cols;
+    getmaxyx(win, win_rows, win_cols);
+
+    // Determine half the window size
+    int half_rows = win_rows / 2;
+    int half_cols = win_cols / 2;
+
+    // Calculate the top-left corner of the rendering area
+    int start_y = corner_y - half_rows;
+    int start_x = corner_x - half_cols;
+
+    // Adjust the rendering area to stay within map boundaries
+    if (start_y < 0) start_y = 0;
+    if (start_x < 0) start_x = 0;
+    if (start_y + win_rows > height_win2) start_y = height_win2 - win_rows;
+    if (start_x + win_cols > width_win2) start_x = width_win2 - win_cols;
+
+    // Clear the window and redraw the border
+    werase(win);
+    box(win, 0, 0);
+
+    // Render the visible portion of the map
+    for (int i = 0; i < win_rows; i++) {
+        for (int j = 0; j < win_cols; j++) {
+            int map_y = start_y + i;
+            int map_x = start_x + j;
+
+            // Determine the character to render based on map values
+            if (map_y >= 0 && map_y < height_win2 && map_x >= 0 && map_x < width_win2) {
+                char symbol;
+                switch (map[map_y][map_x]) {
+                    case 0:
+                        symbol = '.'; // Empty space
+                        break;
+                    case -id:
+                        symbol = '@'; // Filled territory
+                        break;
+                    case id:
+                        symbol = '#'; // Player trail
+                        break;
+                    default:
+                        symbol = '?'; // Undefined
+                        break;
+                }
+                mvwaddch(win, i + 1, j + 1, symbol); // Render character
+            }
+        }
+    }
+
+    // Render the player's position
+    mvwaddch(win, half_rows + 1, half_cols + 1, 'O'); // Center the character
+    wrefresh(win);
+}
+
 void get_name_and_greet(WINDOW *win)
 {
     // get window size
@@ -125,10 +181,10 @@ void create_initial_territory(WINDOW *win, int corner_y, int corner_x)
             int cur_y = corner_y + dy[j];
             if (map[cur_y][cur_x] == -id || cur_x < 1 || cur_x > width_win2 - 2 || cur_y < 1 || cur_y > height_win2 - 2)
                 continue;
-            mvwprintw(win, cur_y, cur_x, "@");
             map[cur_y][cur_x] = -id;
         }
     }
+    render_game(win, corner_y, corner_x);
     // send map to server
 }
 void fill_territory(int corner_y, int corner_x, WINDOW *win)
@@ -152,10 +208,12 @@ void fill_territory(int corner_y, int corner_x, WINDOW *win)
         {
             map[cur.first][cur.second] = -id;
             mvwprintw(win, cur.first, cur.second, "@");
+            wrefresh(win);
             continue;
         }
         map[cur.first][cur.second] = -id;
         mvwprintw(win, cur.first, cur.second, "@");
+        wrefresh(win);
         q.push({cur.first + 1, cur.second});
         q.push({cur.first - 1, cur.second});
         q.push({cur.first, cur.second + 1});
@@ -176,10 +234,10 @@ int check_territory(int corner_y, int corner_x, WINDOW *win)
         exit_game(win, 0); // die
         return 0;
     }
-    // touch own territory, fill it
+    // touch own territory
     if (map[corner_y][corner_x] == -id)
     {
-        // fill territory
+        // if circled, fill territory
         fill_territory(corner_y, corner_x, win);
         return 1;
     }
@@ -273,10 +331,10 @@ void game_loop(WINDOW *win)
             exit_game(win, 0); // die
             return;
         }
-        //die if the player dies touch his own trail
+        // die if the player dies touch his own trail
         if (!check_territory(corner_y, corner_x, win))
             return;
-        
+
         mvwprintw(win, corner_y, corner_x, "O");
         wrefresh(win);
         usleep(200000); // Sleep for 0.1sec, speed of the game
