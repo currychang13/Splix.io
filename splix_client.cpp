@@ -8,12 +8,13 @@
 using namespace std;
 
 // functions
+void render_game(WINDOW *win, int corner_y, int corner_x);
 WINDOW *create_newwin(int height, int width, int starty, int startx);
 WINDOW *get_name_window(int height, int width);
 void get_user_input(WINDOW *win, char *name);
 void get_name_and_greet(WINDOW *win);
 void fill_territory(int corner_y, int corner_x, WINDOW *win);
-int check_territory(int corner_y, int corner_x, WINDOW *win);
+int check_and_update_territory(int corner_y, int corner_x, WINDOW *win);
 void game_loop(WINDOW *win);
 void initial_game();
 void exit_game(WINDOW *win, int flag);
@@ -24,7 +25,7 @@ const int height_win2 = 30, width_win2 = 100;
 
 // id allocate by server
 const int id = 1;
-int map[height_win2][width_win2];
+int map[600][600];
 
 int main()
 {
@@ -35,7 +36,9 @@ int main()
     keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
     init_pair(1, COLOR_RED, COLOR_BLACK);
     init_pair(2, COLOR_YELLOW, COLOR_BLACK);
-    init_pair(3, COLOR_BLACK, COLOR_WHITE);
+    init_pair(3, COLOR_WHITE, COLOR_BLACK);
+    init_pair(4, COLOR_BLACK, COLOR_WHITE);
+
     // windows
     while (true)
     {
@@ -63,65 +66,75 @@ void render_game(WINDOW *win, int corner_y, int corner_x)
 {
     int win_rows, win_cols;
     getmaxyx(win, win_rows, win_cols);
-
     // Determine half the window size
     int half_rows = win_rows / 2;
     int half_cols = win_cols / 2;
 
     // Calculate the top-left corner of the rendering area
-    int start_y = corner_y - half_rows;
-    int start_x = corner_x - half_cols;
-
+    int upperbound = corner_y - half_rows; // upper bound of the rendering area
+    int leftbound = corner_x - half_cols;  // left bound of the rendering area
+    int rightbound = corner_x + half_cols; // right bound
+    int lowerbound = corner_y + half_rows; // lower bound
     // Adjust the rendering area to stay within map boundaries
-    if (start_y < 0)
-        start_y = 0;
-    if (start_x < 0)
-        start_x = 0;
-    if (start_y + win_rows > height_win2)
-        start_y = height_win2 - win_rows;
-    if (start_x + win_cols > width_win2)
-        start_x = width_win2 - win_cols;
+    if (upperbound < 1)
+        upperbound = 1;
+    if (leftbound < 1)
+        leftbound = 1;
+    if (rightbound > width_win2 - 2)
+        rightbound = width_win2 - 2;
+    if (lowerbound > height_win2 - 2)
+        lowerbound = height_win2 - 2;
 
     // Clear the window and redraw the border
     werase(win);
     box(win, 0, 0);
-
+    queue<pair<int, int>> q;
+    q.push({corner_y, corner_x});
     // Render the visible portion of the map
-    for (int i = 0; i < win_rows; i++)
+    while (!q.empty())
     {
-        for (int j = 0; j < win_cols; j++)
+        pair<int, int> cur = q.front();
+        q.pop();
+        // check out of bound and if the cell is filled or not condition
+        if (cur.first < upperbound || cur.first > lowerbound || cur.second < leftbound || cur.second > rightbound)
+            continue;
+        if (cur.first == corner_y && cur.second == corner_x)
         {
-            int map_y = start_y + i;
-            int map_x = start_x + j;
-
-            // Determine the character to render based on map values
-            if (map_y >= 0 && map_y < height_win2 && map_x >= 0 && map_x < width_win2)
+            wattron(win, COLOR_PAIR(id));
+            mvwprintw(win, cur.first, cur.second, "O");
+            wattroff(win, COLOR_PAIR(id));
+        }
+        else
+        {
+            switch (map[cur.first][cur.second])
             {
-                char symbol;
-                switch (map[map_y][map_x])
-                {
-                case 0:
-                    symbol = '.'; // Empty space
-                    break;
-                case -id:
-                    symbol = '@'; // Filled territory
-                    break;
-                case id:
-                    symbol = '#'; // Player trail
-                    break;
-                default:
-                    symbol = '?'; // Undefined
-                    break;
-                }
-                mvwaddch(win, i + 1, j + 1, symbol); // Render character
+            case -id:
+                wattron(win, COLOR_PAIR(id));
+                mvwprintw(win, cur.first, cur.second, "@");
+                wattroff(win, COLOR_PAIR(id));
+                break;
+            case id:
+                wattron(win, COLOR_PAIR(id));
+                mvwprintw(win, cur.first, cur.second, "#");
+                wattroff(win, COLOR_PAIR(id));
+                break;
+            case 0:
+                wattron(win, COLOR_PAIR(3));
+                mvwprintw(win, cur.first, cur.second, ".");
+                wattroff(win, COLOR_PAIR(3));
+                break;
+            default:
+                break;
             }
         }
+        wrefresh(win);
+        q.push({cur.first + 1, cur.second});
+        q.push({cur.first - 1, cur.second});
+        q.push({cur.first, cur.second + 1});
+        q.push({cur.first, cur.second - 1});
     }
-
-    // Render the player's position
-    mvwaddch(win, half_rows + 1, half_cols + 1, 'O'); // Center the character
-    wrefresh(win);
 }
+
 WINDOW *create_newwin(int height, int width, int starty, int startx)
 {
     // int yMax, xMax;
@@ -131,11 +144,12 @@ WINDOW *create_newwin(int height, int width, int starty, int startx)
     wrefresh(win1);
     return win1;
 }
+
 WINDOW *get_name_window(int height, int width)
 {
     WINDOW *win = newwin(height / 3, width / 2, 2, width / 2 - width / 4);
     box(win, 0, 0);
-    wbkgd(win, COLOR_PAIR(3));
+    wbkgd(win, COLOR_PAIR(4));
     mvwprintw(win, 1, 1, "Enter your name");
     wrefresh(win);
     return win;
@@ -287,21 +301,18 @@ void fill_territory(int corner_y, int corner_x, WINDOW *win)
         else if (map[cur.first][cur.second] == id)
         {
             map[cur.first][cur.second] = -id;
-            mvwprintw(win, cur.first, cur.second, "@");
-            wrefresh(win);
             continue;
         }
         map[cur.first][cur.second] = -id;
-        mvwprintw(win, cur.first, cur.second, "@");
-        wrefresh(win);
         q.push({cur.first + 1, cur.second});
         q.push({cur.first - 1, cur.second});
         q.push({cur.first, cur.second + 1});
         q.push({cur.first, cur.second - 1});
     }
+    render_game(win, corner_y, corner_x);
     // send map to server
 }
-int check_territory(int corner_y, int corner_x, WINDOW *win)
+int check_and_update_territory(int corner_y, int corner_x, WINDOW *win)
 {
     // three cases
     //  1. empty territory or other player's territory
@@ -323,6 +334,7 @@ int check_territory(int corner_y, int corner_x, WINDOW *win)
     }
     // empty territory or others' territory (normal case)
     map[corner_y][corner_x] = id;
+    render_game(win, corner_y, corner_x);
     return 1;
 }
 void game_loop(WINDOW *win)
@@ -351,15 +363,13 @@ void game_loop(WINDOW *win)
     wattron(win, COLOR_PAIR(1) | A_BOLD);
     // create initial territory
     create_initial_territory(win, corner_y, corner_x);
-    mvwprintw(win, corner_y, corner_x, "O"); // character
-    wrefresh(win);
 
     nodelay(win, TRUE); // Non-blocking input
-
+    render_game(win, corner_y, corner_x);
     // gaming
     for (;;)
     {
-        if ((ch = wgetch(win)))
+        if ((ch = wgetch(win)) != ERR)
         {
             switch (ch)
             {
@@ -369,29 +379,29 @@ void game_loop(WINDOW *win)
                 return; // exit the function
             case 'w':
             case KEY_UP:
-                if (corner_y == 1)
-                    break; // break means exit the switch, not the loop,which ignores the operation
+                //if (corner_y == 1)
+                    //break; // break means exit the switch, not the loop,which ignores the operation
                 direction.first = -1;
                 direction.second = 0;
                 break;
-            case 's':
+            case 's': 
             case KEY_DOWN:
-                if (corner_y == height_win2 - 2)
-                    break;
+                //if (corner_y == height_win2 - 2)
+                    //break;
                 direction.first = 1;
                 direction.second = 0;
                 break;
             case 'a':
             case KEY_LEFT:
-                if (corner_x == 1)
-                    break;
+                //if (corner_x == 1)
+                    //break;
                 direction.first = 0;
                 direction.second = -1;
                 break;
             case 'd':
             case KEY_RIGHT:
-                if (corner_x == width_win2 - 2)
-                    break;
+                //if (corner_x == width_win2 - 2)
+                    //break;
                 direction.first = 0;
                 direction.second = 1;
                 break;
@@ -399,9 +409,6 @@ void game_loop(WINDOW *win)
                 break;
             }
         }
-        // print trail
-        mvwprintw(win, corner_y, corner_x, "#");
-
         // update position
         corner_y += direction.first;
         corner_x += direction.second;
@@ -413,11 +420,8 @@ void game_loop(WINDOW *win)
             return;
         }
         // die if the player dies touch his own trail
-        if (!check_territory(corner_y, corner_x, win))
+        if (!check_and_update_territory(corner_y, corner_x, win))
             return;
-
-        mvwprintw(win, corner_y, corner_x, "O");
-        wrefresh(win);
         usleep(200000); // Sleep for 0.1sec, speed of the game
     }
 }
