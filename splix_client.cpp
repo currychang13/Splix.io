@@ -7,9 +7,14 @@
 #include "unp.h"
 using namespace std;
 
-
 #define map_height 600
 #define map_width 600
+
+// size of windows
+#define height_win2 30
+#define width_win2 50
+#define height_win1 10
+#define width_win1 100
 
 // functions
 void render_game(WINDOW *win, int corner_y, int corner_x);
@@ -22,10 +27,7 @@ int check_and_update_territory(int corner_y, int corner_x, WINDOW *win);
 void game_loop(WINDOW *win);
 void initial_game();
 void exit_game(WINDOW *win, int flag);
-
-// size of windows
-int height_win1 = 10, width_win1 = 100;
-const int height_win2 = 30, width_win2 = 100;
+void create_initial_territory(WINDOW *win, int corner_y, int corner_x);
 
 // id allocate by server
 const int id = 1;
@@ -80,59 +82,66 @@ void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
     int start_x = coordinate_x - half_cols;
 
     // Adjust the rendering area to stay within map boundaries
-    if (start_y < 0) start_y = 0;
-    if (start_x < 0) start_x = 0;
-    if (start_y + win_rows > height_win2) start_y = height_win2 - win_rows;
-    if (start_x + win_cols > width_win2) start_x = width_win2 - win_cols;
+    if (start_y < 0)
+        start_y = 0;
+    if (start_x < 0)
+        start_x = 0;
+    if (start_y + win_rows > map_height)
+        start_y = map_height - win_rows;
+    if (start_x + win_cols > map_width)
+        start_x = map_width - win_cols;
 
     // Clear the window and redraw the border
     werase(win);
     box(win, 0, 0);
 
     // Render the visible portion of the map
-    for (int i = 0; i < win_rows - 2; i++) {
-        for (int j = 0; j < win_cols - 2; j++) {
+    for (int i = 0; i < win_rows - 2; i++)
+    {
+        for (int j = 0; j < win_cols - 2; j++)
+        {
             int map_y = start_y + i;
             int map_x = start_x + j;
 
             // Skip out-of-bound map cells
-            if (map_y < 0 || map_y >= height_win2 || map_x < 0 || map_x >= width_win2)
+            if (map_y < 0 || map_y >= map_height || map_x < 0 || map_x >= map_width)
                 continue;
 
             // Determine the character to render based on map values
             char symbol;
-            switch (map[map_y][map_x]) {
-                case 0:
-                    symbol = '.'; // Empty space
-                    wattron(win, COLOR_PAIR(3));
-                    break;
-                case -id:
-                    symbol = '@'; // Filled territory
-                    wattron(win, COLOR_PAIR(id));
-                    break;
-                case id:
-                    symbol = '#'; // Player trail
-                    wattron(win, COLOR_PAIR(id));
-                    break;
-                default:
-                    symbol = '?'; // Undefined
-                    wattron(win, COLOR_PAIR(3));
-                    break;
+            switch (map[map_y][map_x])
+            {
+            case 0:
+                symbol = '.'; // Empty space
+                wattron(win, COLOR_PAIR(3));
+                break;
+            case -id:
+                symbol = '@'; // Filled territory
+                wattron(win, COLOR_PAIR(id));
+                break;
+            case id:
+                symbol = '#'; // Player trail
+                wattron(win, COLOR_PAIR(id));
+                break;
+            default:
+                symbol = '?'; // Undefined
+                wattron(win, COLOR_PAIR(3));
+                break;
             }
 
             // Render the character or cell
-            if (map_y == coordinate_y && map_x == coordinate_x) {
+            if (map_y == coordinate_y && map_x == coordinate_x)
+            {
                 symbol = 'O'; // Player
             }
-            mvwaddch(win, i + 1, j + 1, symbol);
+
+            mvwprintw(win, i + 1, j + 1, "%c", symbol);
             wattroff(win, COLOR_PAIR(3) | COLOR_PAIR(id));
         }
     }
-
     // Refresh the window after rendering
     wrefresh(win);
 }
-
 
 WINDOW *create_newwin(int height, int width, int starty, int startx)
 {
@@ -378,29 +387,29 @@ void game_loop(WINDOW *win)
                 return; // exit the function
             case 'w':
             case KEY_UP:
-                //if (corner_y == 1)
-                    //break; // break means exit the switch, not the loop,which ignores the operation
+                // if (corner_y == 1)
+                // break; // break means exit the switch, not the loop,which ignores the operation
                 direction.first = -1;
                 direction.second = 0;
                 break;
-            case 's': 
+            case 's':
             case KEY_DOWN:
-                //if (corner_y == height_win2 - 2)
-                    //break;
+                // if (corner_y == height_win2 - 2)
+                // break;
                 direction.first = 1;
                 direction.second = 0;
                 break;
             case 'a':
             case KEY_LEFT:
-                //if (corner_x == 1)
-                    //break;
+                // if (corner_x == 1)
+                // break;
                 direction.first = 0;
                 direction.second = -1;
                 break;
             case 'd':
             case KEY_RIGHT:
-                //if (corner_x == width_win2 - 2)
-                    //break;
+                // if (corner_x == width_win2 - 2)
+                // break;
                 direction.first = 0;
                 direction.second = 1;
                 break;
@@ -430,12 +439,15 @@ void initial_game()
     WINDOW *win1 = create_newwin(height_win1, width_win1, 0, 0); // size and location
     get_name_and_greet(win1);
     delwin(win1);
+    clear();
+    wrefresh(stdscr);
     // game loop
     noecho(); // disable displaying inputq
     WINDOW *win2 = create_newwin(height_win2, width_win2, 0, 0);
     game_loop(win2);
     echo(); // enable displaying input again
     delwin(win2);
+    wrefresh(stdscr);
 }
 void exit_game(WINDOW *win, int flag)
 {
