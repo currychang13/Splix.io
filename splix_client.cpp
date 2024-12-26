@@ -59,6 +59,69 @@ int main()
 }
 
 // functions
+void render_game(WINDOW *win, int corner_y, int corner_x)
+{
+    int win_rows, win_cols;
+    getmaxyx(win, win_rows, win_cols);
+
+    // Determine half the window size
+    int half_rows = win_rows / 2;
+    int half_cols = win_cols / 2;
+
+    // Calculate the top-left corner of the rendering area
+    int start_y = corner_y - half_rows;
+    int start_x = corner_x - half_cols;
+
+    // Adjust the rendering area to stay within map boundaries
+    if (start_y < 0)
+        start_y = 0;
+    if (start_x < 0)
+        start_x = 0;
+    if (start_y + win_rows > height_win2)
+        start_y = height_win2 - win_rows;
+    if (start_x + win_cols > width_win2)
+        start_x = width_win2 - win_cols;
+
+    // Clear the window and redraw the border
+    werase(win);
+    box(win, 0, 0);
+
+    // Render the visible portion of the map
+    for (int i = 0; i < win_rows; i++)
+    {
+        for (int j = 0; j < win_cols; j++)
+        {
+            int map_y = start_y + i;
+            int map_x = start_x + j;
+
+            // Determine the character to render based on map values
+            if (map_y >= 0 && map_y < height_win2 && map_x >= 0 && map_x < width_win2)
+            {
+                char symbol;
+                switch (map[map_y][map_x])
+                {
+                case 0:
+                    symbol = '.'; // Empty space
+                    break;
+                case -id:
+                    symbol = '@'; // Filled territory
+                    break;
+                case id:
+                    symbol = '#'; // Player trail
+                    break;
+                default:
+                    symbol = '?'; // Undefined
+                    break;
+                }
+                mvwaddch(win, i + 1, j + 1, symbol); // Render character
+            }
+        }
+    }
+
+    // Render the player's position
+    mvwaddch(win, half_rows + 1, half_cols + 1, 'O'); // Center the character
+    wrefresh(win);
+}
 WINDOW *create_newwin(int height, int width, int starty, int startx)
 {
     // int yMax, xMax;
@@ -76,61 +139,6 @@ WINDOW *get_name_window(int height, int width)
     mvwprintw(win, 1, 1, "Enter your name");
     wrefresh(win);
     return win;
-}
-void render_game(WINDOW *win, int corner_y, int corner_x)
-{
-    int win_rows, win_cols;
-    getmaxyx(win, win_rows, win_cols);
-
-    // Determine half the window size
-    int half_rows = win_rows / 2;
-    int half_cols = win_cols / 2;
-
-    // Calculate the top-left corner of the rendering area
-    int start_y = corner_y - half_rows;
-    int start_x = corner_x - half_cols;
-
-    // Adjust the rendering area to stay within map boundaries
-    if (start_y < 0) start_y = 0;
-    if (start_x < 0) start_x = 0;
-    if (start_y + win_rows > height_win2) start_y = height_win2 - win_rows;
-    if (start_x + win_cols > width_win2) start_x = width_win2 - win_cols;
-
-    // Clear the window and redraw the border
-    werase(win);
-    box(win, 0, 0);
-
-    // Render the visible portion of the map
-    for (int i = 0; i < win_rows; i++) {
-        for (int j = 0; j < win_cols; j++) {
-            int map_y = start_y + i;
-            int map_x = start_x + j;
-
-            // Determine the character to render based on map values
-            if (map_y >= 0 && map_y < height_win2 && map_x >= 0 && map_x < width_win2) {
-                char symbol;
-                switch (map[map_y][map_x]) {
-                    case 0:
-                        symbol = '.'; // Empty space
-                        break;
-                    case -id:
-                        symbol = '@'; // Filled territory
-                        break;
-                    case id:
-                        symbol = '#'; // Player trail
-                        break;
-                    default:
-                        symbol = '?'; // Undefined
-                        break;
-                }
-                mvwaddch(win, i + 1, j + 1, symbol); // Render character
-            }
-        }
-    }
-
-    // Render the player's position
-    mvwaddch(win, half_rows + 1, half_cols + 1, 'O'); // Center the character
-    wrefresh(win);
 }
 
 void get_user_input(WINDOW *win, char *name)
