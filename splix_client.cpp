@@ -17,17 +17,18 @@ using namespace std;
 #define width_win1 100
 
 // functions
-void render_game(WINDOW *win, int corner_y, int corner_x);
+void render_game(WINDOW *win, int coordinate_y, int coordinate_x);
 WINDOW *create_newwin(int height, int width, int starty, int startx);
 WINDOW *get_name_window(int height, int width);
 void get_user_input(WINDOW *win, char *name);
 void get_name_and_greet(WINDOW *win);
-void fill_territory(int corner_y, int corner_x, WINDOW *win);
-int check_and_update_territory(int corner_y, int corner_x, WINDOW *win);
+void fill_territory(int coordinate_y, int coordinate_x, WINDOW *win);
+int check_valid_position(int coordinate_y, int coordinate_x, WINDOW *win);
 void game_loop(WINDOW *win);
 void initial_game();
 void exit_game(WINDOW *win, int flag);
-void create_initial_territory(WINDOW *win, int corner_y, int corner_x);
+void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x);
+
 
 // id allocate by server
 const int id = 1;
@@ -267,7 +268,7 @@ void get_name_and_greet(WINDOW *win)
     wgetch(win); // wait for next character, or it will skip the greeting msg
     */
 }
-void create_initial_territory(WINDOW *win, int corner_y, int corner_x)
+void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x)
 {
     // create initial territory
     // 1. create a rectangle
@@ -277,19 +278,19 @@ void create_initial_territory(WINDOW *win, int corner_y, int corner_x)
     int dy[] = {1, 0, -1, 0};
     for (int i = 0; i < 4; i++)
     {
-        int cur_x = corner_x + dx[i];
+        int cur_x = coordinate_x + dx[i];
         for (int j = 0; j < 4; j++)
         {
-            int cur_y = corner_y + dy[j];
+            int cur_y = coordinate_y + dy[j];
             if (map[cur_y][cur_x] == -id || cur_x < 1 || cur_x > width_win2 - 2 || cur_y < 1 || cur_y > height_win2 - 2)
                 continue;
             map[cur_y][cur_x] = -id;
         }
     }
-    render_game(win, corner_y, corner_x);
+    render_game(win, coordinate_y, coordinate_x);
     // send map to server
 }
-void fill_territory(int corner_y, int corner_x, WINDOW *win)
+void fill_territory(int coordinate_y, int coordinate_x, WINDOW *win)
 {
     // fill territory
     // flood fill algorithm
@@ -297,7 +298,7 @@ void fill_territory(int corner_y, int corner_x, WINDOW *win)
     // 2. if empty, fill it and check the 4 adjacent cells
     // 3. if not empty, return
     queue<pair<int, int>> q;
-    q.push({corner_y, corner_x});
+    q.push({coordinate_y, coordinate_x});
     while (!q.empty())
     {
         pair<int, int> cur = q.front();
@@ -306,7 +307,7 @@ void fill_territory(int corner_y, int corner_x, WINDOW *win)
         if (cur.first < 1 || cur.first > height_win2 - 2 || cur.second < 1 || cur.second > width_win2 - 2 || map[cur.first][cur.second] == -id)
             continue;
         // if the cell reaches the trail, fill it
-        else if (map[cur.first][cur.second] == id)
+        if (map[cur.first][cur.second] == id)
         {
             map[cur.first][cur.second] = -id;
             continue;
@@ -317,32 +318,22 @@ void fill_territory(int corner_y, int corner_x, WINDOW *win)
         q.push({cur.first, cur.second + 1});
         q.push({cur.first, cur.second - 1});
     }
-    render_game(win, corner_y, corner_x);
+    render_game(win, coordinate_y, coordinate_x);
     // send map to server
 }
-int check_and_update_territory(int coordinate_y, int coordinate_x, WINDOW *win)
+int check_valid_position(int coordinate_y, int coordinate_x, WINDOW *win)
 {
     // three cases
     //  1. empty territory or other player's territory
     //  2. territory of the player(-id), fill territory
     //  3. trail of the player(id), die
-
-    // touch the trail
-    if (map[coordinate_y][coordinate_x] == id)
+    //  4. out of bound, die
+    // out of bound or touch the trail -> die
+    if (coordinate_y < 1 || coordinate_y >= map_height || coordinate_x < 1 || coordinate_x >= map_width || map[coordinate_y][coordinate_x] == id)
     {
         exit_game(win, 0); // die
         return 0;
     }
-    // touch own territory
-    if (map[coordinate_y][coordinate_x] == -id)
-    {
-        // if circled, fill territory
-        fill_territory(coordinate_y, coordinate_x, win);
-        return 1;
-    }
-    // empty territory or others' territory (normal case)
-    map[coordinate_y][coordinate_x] = id;
-    render_game(win, coordinate_y, coordinate_x);
     return 1;
 }
 void game_loop(WINDOW *win)
@@ -387,28 +378,28 @@ void game_loop(WINDOW *win)
                 return; // exit the function
             case 'w':
             case KEY_UP:
-                // if (corner_y == 1)
+                // if (coordinate_y == 1)
                 // break; // break means exit the switch, not the loop,which ignores the operation
                 direction.first = -1;
                 direction.second = 0;
                 break;
             case 's':
             case KEY_DOWN:
-                // if (corner_y == height_win2 - 2)
+                // if (coordinate_y == height_win2 - 2)
                 // break;
                 direction.first = 1;
                 direction.second = 0;
                 break;
             case 'a':
             case KEY_LEFT:
-                // if (corner_x == 1)
+                // if (coordinate_x == 1)
                 // break;
                 direction.first = 0;
                 direction.second = -1;
                 break;
             case 'd':
             case KEY_RIGHT:
-                // if (corner_x == width_win2 - 2)
+                // if (coordinate_x == width_win2 - 2)
                 // break;
                 direction.first = 0;
                 direction.second = 1;
@@ -418,18 +409,24 @@ void game_loop(WINDOW *win)
             }
         }
         // update position
+        int prev_y = coordinate_y, prev_x = coordinate_x;
         coordinate_y += direction.first;
         coordinate_x += direction.second;
 
-        // check if the player is out of bound
-        if (coordinate_y < 1 || coordinate_y >= map_height || coordinate_x < 1 || coordinate_x > map_width)
+        // check if die or not
+        if (!check_valid_position(coordinate_y, coordinate_x, win))
+            return;
+        //check the territory
+        if (map[coordinate_y][coordinate_x] == -id)
         {
-            exit_game(win, 0); // die
-            return;
+            // if circle back to
+            fill_territory(prev_y, prev_x, win);
+            // else, moving on its own territory
         }
-        // die if the player dies touch his own trail
-        if (!check_and_update_territory(coordinate_y, coordinate_x, win))
-            return;
+        else
+        {
+            map[coordinate_y][coordinate_x] = id;
+        }
         render_game(win, coordinate_y, coordinate_x);
         usleep(200000); // Sleep for 0.1sec, speed of the game
     }
