@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <queue>
 #include <chrono>
+#include <random>
 #include "unp.h"
 using namespace std;
 
@@ -12,10 +13,10 @@ using namespace std;
 #define MAP_WIDTH 600
 
 // size of windows
-#define HEIGHT_WIN2 40
+#define HEIGHT_WIN2 50
 #define WIDTH_WIN2 100
 
-#define HEIGHT_WIN1 40
+#define HEIGHT_WIN1 50
 #define WIDTH_WIN1 100
 
 // functions
@@ -50,6 +51,7 @@ int main()
     init_pair(2, COLOR_YELLOW, COLOR_BLACK);
     init_pair(3, COLOR_WHITE, COLOR_BLACK);
     init_pair(4, COLOR_BLACK, COLOR_WHITE);
+    init_pair(5, COLOR_BLUE, COLOR_BLACK);
 
     // windows
     while (true)
@@ -100,8 +102,6 @@ void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
         start_x = MAP_WIDTH - win_cols;
 
     // Clear the window and redraw the border
-    werase(win);
-    box(win, 0, 0);
     setlocale(LC_ALL, "");
     // Render the visible portion of the map
     for (int i = 0; i < win_rows - 2; i++)
@@ -117,19 +117,19 @@ void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
 
             // Determine the character to render based on map values
             ;
-            wchar_t *symbol;
+            const wchar_t *symbol;
             switch (map[map_y][map_x])
             {
             case 0:
                 symbol = L"."; // Empty space
-                wattron(win, COLOR_PAIR(3));
+                wattron(win, COLOR_PAIR(5));
                 break;
             case -id:
-                symbol = L"██"; // Filled territory
+                symbol = L"■"; // Filled territory
                 wattron(win, COLOR_PAIR(id));
                 break;
             case id:
-                symbol = L"#"; // Player trail
+                symbol = L"▪"; // Player trail
                 wattron(win, COLOR_PAIR(id));
                 break;
             default:
@@ -152,6 +152,7 @@ void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
 }
 void Rendertitle(WINDOW *win)
 {
+    wattron(win, COLOR_PAIR(1) | A_BOLD);
     int maxX = getmaxx(win);
     setlocale(LC_ALL, "");
     const wchar_t *title[] = {
@@ -165,10 +166,11 @@ void Rendertitle(WINDOW *win)
     int artWidth = wcslen(title[0]);
     int startX = (maxX - artWidth) / 2;
     int artLines = sizeof(title) / sizeof(title[0]);
-    int startY = 1;
+    int startY = 3;
     for (int i = 0; i < artLines; i++)
         mvwaddwstr(win, startY + i, startX, title[i]);
     wrefresh(win);
+    wattroff(win, COLOR_PAIR(1) | A_BOLD);
 }
 
 // window functions
@@ -185,11 +187,13 @@ WINDOW *get_name_window()
 {
     int name_height = HEIGHT_WIN1 / 12;
     int name_width = WIDTH_WIN2 / 2;
-    WINDOW *name_win = newwin(name_height, name_width, (HEIGHT_WIN1 - name_height) / 2, (COLS - name_width) / 2);
+    WINDOW *name_win = newwin(name_height, name_width, (HEIGHT_WIN1 - name_height) / 2.5, (COLS - name_width) / 2);
+    wattron(name_win, A_BOLD);
     box(name_win, 0, 0);
     wbkgd(name_win, COLOR_PAIR(4));
     mvwprintw(name_win, 1, 1, "Enter your name");
     wrefresh(name_win);
+    wattroff(name_win, A_BOLD);
     return name_win;
 }
 
@@ -264,22 +268,30 @@ void get_user_input(WINDOW *win, char *name)
     }
     noecho(); // disable displaying input
 }
-void get_name_and_greet(WINDOW *win)
-{
-    // show title
-    wattron(win, COLOR_PAIR(2) | A_BOLD);
-    Rendertitle(win);
-    wattroff(win, COLOR_PAIR(2) | A_BOLD);
-    // create input window
-    WINDOW *name_win = get_name_window();
-    // get name
-    char name[50] = "";
-    get_user_input(name_win, name);
-    // after that, send to server
-    delwin(name_win);
-}
 
 // game functions
+void update_status(WINDOW *win, int coordinate_y, int coordinate_x)
+{
+    // Update the status window
+    wattron(win, A_BOLD);
+    mvwprintw(win, 1, 1, "Status");
+    // get status from server
+    int score = 0;
+    for (int i = 0; i < MAP_HEIGHT; i++)
+    {
+        for (int j = 0; j < MAP_WIDTH; j++)
+        {
+            if (map[i][j] == -id)
+            {
+                score++;
+            }
+        }
+    }
+    mvwprintw(win, 2, 1, "Score: %d", score);
+    mvwprintw(win, 3, 1, "Position: (%d, %d)", coordinate_y, coordinate_x);
+    wrefresh(win);
+    wattroff(win, A_BOLD);
+}
 void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x)
 {
     // create initial territory
@@ -294,7 +306,7 @@ void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x)
         for (int j = 0; j < 4; j++)
         {
             int cur_y = coordinate_y + dy[j];
-            if (map[cur_y][cur_x] == -id || cur_x < 1 || cur_x > WIDTH_WIN2 - 2 || cur_y < 1 || cur_y > HEIGHT_WIN2 - 2)
+            if (map[cur_y][cur_x] == -id || cur_x < 0 || cur_x >= MAP_WIDTH || cur_y < 0 || cur_y >= MAP_HEIGHT)
                 continue;
             map[cur_y][cur_x] = -id;
         }
@@ -361,7 +373,7 @@ vector<pair<int, int>> find_inside_points()
     // Mark all border-connected areas as "outside"
     for (int i = 0; i < MAP_HEIGHT; i++)
     {
-        for (int j : {0,MAP_WIDTH - 1})
+        for (int j : {0, MAP_WIDTH - 1})
         {
             if (map[i][j] != 0 /*&& map[i][j] != id*/)
             {
@@ -374,11 +386,16 @@ vector<pair<int, int>> find_inside_points()
             }
         }
     }
-    for (int j = 0; j < MAP_WIDTH; j++) {
-        for (int i : {0, MAP_HEIGHT - 1}) {
-            if (map[i][j] != 0 /*&& map[i][j] != id*/) {
+    for (int j = 0; j < MAP_WIDTH; j++)
+    {
+        for (int i : {0, MAP_HEIGHT - 1})
+        {
+            if (map[i][j] != 0 /*&& map[i][j] != id*/)
+            {
                 visited[i][j] = true; // Mark borders and filled territory
-            } else if (!visited[i][j]) {
+            }
+            else if (!visited[i][j])
+            {
                 q.push({i, j});
                 visited[i][j] = true;
             }
@@ -446,18 +463,23 @@ int check_valid_position(int coordinate_y, int coordinate_x, WINDOW *win)
 }
 
 // flow functions
-void game_loop(WINDOW *win)
+void get_name_and_greet(WINDOW *win)
 {
+    // create input window
+    WINDOW *name_win = get_name_window();
+    // get name
+    char name[50] = "";
+    get_user_input(name_win, name);
+    // after that, send to server
+    delwin(name_win);
+}
+void game_loop(WINDOW *win, WINDOW *status_win)
+{
+    // Disable the cursor
+    curs_set(0);
     keypad(win, TRUE);
-    int ch; // use int to store the character like key_up, key_down, etc.
-
-    // initial position(coordinates)
-    int coordinate_x = 5, coordinate_y = 5;
-
-    // default direction
-    pair<int, int> direction; // y and x
-    direction.first = 0;
-    direction.second = 1;
+    nodelay(win, TRUE); // Non-blocking input
+    wattron(win, COLOR_PAIR(1) | A_BOLD);
 
     // get map from server
     for (int i = 0; i < MAP_HEIGHT; i++)
@@ -467,15 +489,23 @@ void game_loop(WINDOW *win)
             map[i][j] = 0;
         }
     }
+
+    // initial position(coordinates), receive from server
+    srand(time(NULL));
+    int coordinate_x = rand() % MAP_WIDTH, coordinate_y = rand() % MAP_HEIGHT;
     map[coordinate_y][coordinate_x] = id;
 
-    wattron(win, COLOR_PAIR(1) | A_BOLD);
+    // default direction
+    pair<int, int> direction; // y and x
+    direction.first = 0;
+    direction.second = 1;
+
     // create initial territory
     create_initial_territory(win, coordinate_y, coordinate_x);
-
-    nodelay(win, TRUE); // Non-blocking input
     render_game(win, coordinate_y, coordinate_x);
+    update_status(status_win, coordinate_y, coordinate_x);
     // gaming
+    int ch; // use int to store the character like key_up, key_down, etc.
     for (;;)
     {
         if ((ch = wgetch(win)) != ERR)
@@ -488,29 +518,23 @@ void game_loop(WINDOW *win)
                 return; // exit the function
             case 'w':
             case KEY_UP:
-                // if (coordinate_y == 1)
-                // break; // break means exit the switch, not the loop,which ignores the operation
                 direction.first = -1;
                 direction.second = 0;
-                break;
+                break; // break means exit the switch, not the loop,which ignores the operation
             case 's':
             case KEY_DOWN:
-                // if (coordinate_y == HEIGHT_WIN2 - 2)
-                // break;
+
                 direction.first = 1;
                 direction.second = 0;
                 break;
             case 'a':
             case KEY_LEFT:
-                // if (coordinate_x == 1)
-                // break;
+
                 direction.first = 0;
                 direction.second = -1;
                 break;
             case 'd':
             case KEY_RIGHT:
-                // if (coordinate_x == WIDTH_WIN2 - 2)
-                // break;
                 direction.first = 0;
                 direction.second = 1;
                 break;
@@ -537,9 +561,6 @@ void game_loop(WINDOW *win)
 
                 // Fill the enclosed area
                 fill_territory(inside_points);
-
-                // Render the updated map
-                render_game(win, coordinate_y, coordinate_x);
             }
         }
         else
@@ -547,12 +568,15 @@ void game_loop(WINDOW *win)
             map[coordinate_y][coordinate_x] = id;
         }
         render_game(win, coordinate_y, coordinate_x);
+        update_status(status_win, coordinate_y, coordinate_x);
         usleep(200000); // Sleep for 0.1sec, speed of the game
     }
 }
 void initial_game()
 {
     WINDOW *win1 = create_newwin(HEIGHT_WIN1, WIDTH_WIN1, (LINES - HEIGHT_WIN1) / 2, (COLS - WIDTH_WIN1) / 2); // size and location
+    // show title
+    Rendertitle(win1);
     get_name_and_greet(win1);
     delwin(win1);
     clear();
@@ -560,7 +584,8 @@ void initial_game()
     // game loop
     noecho(); // disable displaying inputq
     WINDOW *win2 = create_newwin(HEIGHT_WIN2, WIDTH_WIN2, (LINES - HEIGHT_WIN2) / 2, (COLS - WIDTH_WIN2) / 2);
-    game_loop(win2);
+    WINDOW *win3 = create_newwin(HEIGHT_WIN2 / 10, WIDTH_WIN2 / 4, (LINES - HEIGHT_WIN2) / 2, (COLS + WIDTH_WIN2) / 2);
+    game_loop(win2, win3);
     echo(); // enable displaying input again
     delwin(win2);
     wrefresh(stdscr);
