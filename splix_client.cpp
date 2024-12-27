@@ -8,32 +8,35 @@
 #include "unp.h"
 using namespace std;
 
-#define map_height 600
-#define map_width 600
+#define MAP_HEIGHT 600
+#define MAP_WIDTH 600
 
 // size of windows
-#define height_win2 50
-#define width_win2 50
+#define HEIGHT_WIN2 40
+#define WIDTH_WIN2 100
 
-#define height_win1 50
-#define width_win1 50
+#define HEIGHT_WIN1 40
+#define WIDTH_WIN1 100
 
 // functions
 void render_game(WINDOW *win, int coordinate_y, int coordinate_x);
 WINDOW *create_newwin(int height, int width, int starty, int startx);
-WINDOW *get_name_window(int height, int width);
+WINDOW *get_name_window();
 void get_user_input(WINDOW *win, char *name);
 void get_name_and_greet(WINDOW *win);
-void fill_territory(int coordinate_y, int coordinate_x, WINDOW *win);
 int check_valid_position(int coordinate_y, int coordinate_x, WINDOW *win);
 void game_loop(WINDOW *win);
 void initial_game();
 void exit_game(WINDOW *win, int flag);
 void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x);
+void Rendertitle(WINDOW *win);
+bool is_enclosure(int y, int x);
+vector<pair<int, int>> find_inside_points();
+void fill_territory(const vector<pair<int, int>> &inside_points);
 
 // id allocate by server
 const int id = 1;
-int map[map_height][map_width];
+int map[MAP_HEIGHT][MAP_WIDTH];
 
 int main()
 {
@@ -72,6 +75,7 @@ int main()
 
 // functions
 
+// render functions
 void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
 {
     int win_rows, win_cols;
@@ -90,15 +94,15 @@ void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
         start_y = 0;
     if (start_x < 0)
         start_x = 0;
-    if (start_y + win_rows > map_height)
-        start_y = map_height - win_rows;
-    if (start_x + win_cols > map_width)
-        start_x = map_width - win_cols;
+    if (start_y + win_rows > MAP_HEIGHT)
+        start_y = MAP_HEIGHT - win_rows;
+    if (start_x + win_cols > MAP_WIDTH)
+        start_x = MAP_WIDTH - win_cols;
 
     // Clear the window and redraw the border
     werase(win);
     box(win, 0, 0);
-
+    setlocale(LC_ALL, "");
     // Render the visible portion of the map
     for (int i = 0; i < win_rows - 2; i++)
     {
@@ -108,27 +112,28 @@ void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
             int map_x = start_x + j;
 
             // Skip out-of-bound map cells
-            if (map_y < 0 || map_y >= map_height || map_x < 0 || map_x >= map_width)
+            if (map_y < 0 || map_y >= MAP_HEIGHT || map_x < 0 || map_x >= MAP_WIDTH)
                 continue;
 
             // Determine the character to render based on map values
-            char symbol;
+            ;
+            wchar_t *symbol;
             switch (map[map_y][map_x])
             {
             case 0:
-                symbol = '.'; // Empty space
+                symbol = L"."; // Empty space
                 wattron(win, COLOR_PAIR(3));
                 break;
             case -id:
-                symbol = '@'; // Filled territory
+                symbol = L"██"; // Filled territory
                 wattron(win, COLOR_PAIR(id));
                 break;
             case id:
-                symbol = '#'; // Player trail
+                symbol = L"#"; // Player trail
                 wattron(win, COLOR_PAIR(id));
                 break;
             default:
-                symbol = '?'; // Undefined
+                symbol = L"?"; // Undefined
                 wattron(win, COLOR_PAIR(3));
                 break;
             }
@@ -136,10 +141,9 @@ void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
             // Render the character or cell
             if (map_y == coordinate_y && map_x == coordinate_x)
             {
-                symbol = 'O'; // Player
+                symbol = L"O"; // Player
             }
-
-            mvwprintw(win, i + 1, j + 1, "%c", symbol);
+            mvwaddwstr(win, i + 1, j + 1, symbol);
             wattroff(win, COLOR_PAIR(3) | COLOR_PAIR(id));
         }
     }
@@ -148,10 +152,8 @@ void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
 }
 void Rendertitle(WINDOW *win)
 {
-    int maxY, maxX;
-    getmaxyx(win, maxY, maxX);
+    int maxX = getmaxx(win);
     setlocale(LC_ALL, "");
-
     const wchar_t *title[] = {
         L"███████╗██████╗ ██╗     ██╗██╗  ██╗   ██╗ ██████╗ ",
         L"██╔════╝██╔══██╗██║     ██║╚██╗██╔╝   ██║██╔═══██╗",
@@ -168,6 +170,8 @@ void Rendertitle(WINDOW *win)
         mvwaddwstr(win, startY + i, startX, title[i]);
     wrefresh(win);
 }
+
+// window functions
 WINDOW *create_newwin(int height, int width, int starty, int startx)
 {
     // int yMax, xMax;
@@ -177,19 +181,19 @@ WINDOW *create_newwin(int height, int width, int starty, int startx)
     wrefresh(win1);
     return win1;
 }
-
-WINDOW *get_name_window(int height, int width)
+WINDOW *get_name_window()
 {
-    int name_height = height / 15;
-    int name_width = width - 4;
-    WINDOW *win = newwin(name_height, name_width, 10, (COLS - name_width) / 2);
-    box(win, 0, 0);
-    wbkgd(win, COLOR_PAIR(4));
-    mvwprintw(win, 1, 1, "Enter your name");
-    wrefresh(win);
-    return win;
+    int name_height = HEIGHT_WIN1 / 12;
+    int name_width = WIDTH_WIN2 / 2;
+    WINDOW *name_win = newwin(name_height, name_width, (HEIGHT_WIN1 - name_height) / 2, (COLS - name_width) / 2);
+    box(name_win, 0, 0);
+    wbkgd(name_win, COLOR_PAIR(4));
+    mvwprintw(name_win, 1, 1, "Enter your name");
+    wrefresh(name_win);
+    return name_win;
 }
 
+// input functions
 void get_user_input(WINDOW *win, char *name)
 {
     echo(); // enable displaying input
@@ -267,13 +271,15 @@ void get_name_and_greet(WINDOW *win)
     Rendertitle(win);
     wattroff(win, COLOR_PAIR(2) | A_BOLD);
     // create input window
-    WINDOW *name_win = get_name_window(height_win1, width_win1);
+    WINDOW *name_win = get_name_window();
     // get name
     char name[50] = "";
     get_user_input(name_win, name);
     // after that, send to server
     delwin(name_win);
 }
+
+// game functions
 void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x)
 {
     // create initial territory
@@ -288,7 +294,7 @@ void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x)
         for (int j = 0; j < 4; j++)
         {
             int cur_y = coordinate_y + dy[j];
-            if (map[cur_y][cur_x] == -id || cur_x < 1 || cur_x > width_win2 - 2 || cur_y < 1 || cur_y > height_win2 - 2)
+            if (map[cur_y][cur_x] == -id || cur_x < 1 || cur_x > WIDTH_WIN2 - 2 || cur_y < 1 || cur_y > HEIGHT_WIN2 - 2)
                 continue;
             map[cur_y][cur_x] = -id;
         }
@@ -296,47 +302,90 @@ void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x)
     render_game(win, coordinate_y, coordinate_x);
     // send map to server
 }
-pair<int, int> find_inside_point(int height, int width)
+bool is_enclosure(int y, int x)
 {
-    vector<vector<bool>> visited(height, vector<bool>(width, false));
+    // BFS to determine if the trail forms a closed boundary
+    vector<vector<bool>> visited(MAP_HEIGHT, vector<bool>(MAP_WIDTH, false));
+    queue<pair<int, int>> q;
+
+    // Start from the current position
+    q.push({y, x});
+    visited[y][x] = true;
+
+    bool touches_border = false;
+
+    int dy[] = {-1, 1, 0, 0};
+    int dx[] = {0, 0, -1, 1};
+
+    while (!q.empty())
+    {
+        auto [cy, cx] = q.front();
+        q.pop();
+
+        for (int d = 0; d < 4; d++)
+        {
+            int ny = cy + dy[d];
+            int nx = cx + dx[d];
+
+            // Out-of-bounds check
+            if (ny < 0 || ny >= MAP_HEIGHT || nx < 0 || nx >= MAP_WIDTH)
+            {
+                touches_border = true;
+                continue;
+            }
+
+            // Skip visited cells
+            if (visited[ny][nx])
+                continue;
+
+            // Only consider trail (`id`) and territory (`-id`)
+            if (map[ny][nx] == id || map[ny][nx] == -id)
+            {
+                visited[ny][nx] = true;
+                q.push({ny, nx});
+            }
+        }
+    }
+
+    // If the component touches the border, it's not an enclosure
+    return !touches_border;
+}
+vector<pair<int, int>> find_inside_points()
+{
+    vector<vector<bool>> visited(MAP_HEIGHT, vector<bool>(MAP_WIDTH, false));
     queue<pair<int, int>> q;
 
     int dy[] = {-1, 1, 0, 0};
     int dx[] = {0, 0, -1, 1};
 
-    // Mark all border and territory cells as "outside"
-    for (int i = 0; i < height; i++)
+    // Mark all border-connected areas as "outside"
+    for (int i = 0; i < MAP_HEIGHT; i++)
     {
-        for (int j : {0, width - 1})
+        for (int j : {0,MAP_WIDTH - 1})
         {
-            if ((map[i][j] != 0 && map[i][j] != id) || visited[i][j])
+            if (map[i][j] != 0 /*&& map[i][j] != id*/)
             {
-                visited[i][j] = true;
+                visited[i][j] = true; // Mark borders and filled territory
             }
-            else
+            else if (!visited[i][j])
             {
                 q.push({i, j});
                 visited[i][j] = true;
             }
         }
     }
-    for (int j = 0; j < width; j++)
-    {
-        for (int i : {0, height - 1})
-        {
-            if ((map[i][j] != 0 && map[i][j] != id) || visited[i][j])
-            {
-                visited[i][j] = true;
-            }
-            else
-            {
+    for (int j = 0; j < MAP_WIDTH; j++) {
+        for (int i : {0, MAP_HEIGHT - 1}) {
+            if (map[i][j] != 0 /*&& map[i][j] != id*/) {
+                visited[i][j] = true; // Mark borders and filled territory
+            } else if (!visited[i][j]) {
                 q.push({i, j});
                 visited[i][j] = true;
             }
         }
     }
 
-    // Flood fill from borders to mark outside points
+    // Flood-fill to mark all "outside" cells
     while (!q.empty())
     {
         auto [y, x] = q.front();
@@ -347,78 +396,38 @@ pair<int, int> find_inside_point(int height, int width)
             int ny = y + dy[d];
             int nx = x + dx[d];
 
-            if (ny < 0 || ny >= height || nx < 0 || nx >= width || visited[ny][nx])
+            if (ny < 0 || ny >= MAP_HEIGHT || nx < 0 || nx >= MAP_WIDTH || visited[ny][nx])
                 continue;
-
-            if (map[ny][nx] != 0 && map[ny][nx] != id)
-                continue;
-
-            visited[ny][nx] = true;
-            q.push({ny, nx});
-        }
-    }
-
-    // Find the first unvisited point surrounded by the trail
-    for (int y = 1; y < height - 1; y++)
-    {
-        for (int x = 1; x < width - 1; x++)
-        {
-            if (!visited[y][x] && map[y][x] == 0)
-            { // Must be empty
-                return {y, x};
-            }
-        }
-    }
-
-    return {-1, -1}; // No inside point found
-}
-
-void fill_territory(int coordinate_y, int coordinate_x, WINDOW *win)
-{
-    queue<pair<int, int>> q;
-    q.push({coordinate_y, coordinate_x});
-
-    int dy[] = {-1, 1, 0, 0};
-    int dx[] = {0, 0, -1, 1};
-
-    while (!q.empty())
-    {
-        auto [y, x] = q.front();
-        q.pop();
-
-        if (y < 0 || y >= map_height || x < 0 || x >= map_width || map[y][x] == -id)
-            continue;
-
-        if (map[y][x] == id)
-        {
-            map[y][x] = -id;
-        }
-        else
-        {
-            map[y][x] = -id;
-            for (int d = 0; d < 4; d++)
+            // other wise, mark as visited
+            if (map[ny][nx] != id && map[ny][nx] != -id)
             {
-                q.push({y + dy[d], x + dx[d]});
+                visited[ny][nx] = true;
+                q.push({ny, nx});
             }
         }
     }
 
-    render_game(win, coordinate_y, coordinate_x);
-}
-
-bool handle_fill_territory(WINDOW *win)
-{
-    // Find an inside point
-    pair<int, int> inside_point = find_inside_point(map_height, map_width);
-    if (inside_point.first == -1)
+    // Collect all unvisited empty cells as inside points
+    vector<pair<int, int>> inside_points;
+    for (int y = 1; y < MAP_HEIGHT - 1; y++)
     {
-        mvwprintw(win, 0, 0, "No enclosed area found!");
-        wrefresh(win);
-        return false;
+        for (int x = 1; x < MAP_WIDTH - 1; x++)
+        {
+            if (!visited[y][x] && (map[y][x] == 0 || map[y][x] == id))
+            {
+                inside_points.push_back({y, x});
+            }
+        }
     }
 
-    // Fill the territory starting from the inside point
-    fill_territory(inside_point.first, inside_point.second, win);
+    return inside_points;
+}
+void fill_territory(const vector<pair<int, int>> &inside_points)
+{
+    for (const auto &[y, x] : inside_points)
+    {
+        map[y][x] = -id; // Mark as filled territory
+    }
 }
 int check_valid_position(int coordinate_y, int coordinate_x, WINDOW *win)
 {
@@ -428,13 +437,15 @@ int check_valid_position(int coordinate_y, int coordinate_x, WINDOW *win)
     //  3. trail of the player(id), die
     //  4. out of bound, die
     // out of bound or touch the trail -> die
-    if (coordinate_y < 1 || coordinate_y >= map_height || coordinate_x < 1 || coordinate_x >= map_width || map[coordinate_y][coordinate_x] == id)
+    if (coordinate_y < 1 || coordinate_y >= MAP_HEIGHT || coordinate_x < 1 || coordinate_x >= MAP_WIDTH || map[coordinate_y][coordinate_x] == id)
     {
         exit_game(win, 0); // die
         return 0;
     }
     return 1;
 }
+
+// flow functions
 void game_loop(WINDOW *win)
 {
     keypad(win, TRUE);
@@ -449,9 +460,9 @@ void game_loop(WINDOW *win)
     direction.second = 1;
 
     // get map from server
-    for (int i = 0; i < map_height; i++)
+    for (int i = 0; i < MAP_HEIGHT; i++)
     {
-        for (int j = 0; j < map_width; j++)
+        for (int j = 0; j < MAP_WIDTH; j++)
         {
             map[i][j] = 0;
         }
@@ -484,7 +495,7 @@ void game_loop(WINDOW *win)
                 break;
             case 's':
             case KEY_DOWN:
-                // if (coordinate_y == height_win2 - 2)
+                // if (coordinate_y == HEIGHT_WIN2 - 2)
                 // break;
                 direction.first = 1;
                 direction.second = 0;
@@ -498,7 +509,7 @@ void game_loop(WINDOW *win)
                 break;
             case 'd':
             case KEY_RIGHT:
-                // if (coordinate_x == width_win2 - 2)
+                // if (coordinate_x == WIDTH_WIN2 - 2)
                 // break;
                 direction.first = 0;
                 direction.second = 1;
@@ -519,7 +530,17 @@ void game_loop(WINDOW *win)
         if (map[coordinate_y][coordinate_x] == -id)
         {
             // if circled, else, moving on its own territory
-            handle_fill_territory(win);
+            if (is_enclosure(coordinate_y, coordinate_x))
+            {
+                // Find all inside points
+                auto inside_points = find_inside_points();
+
+                // Fill the enclosed area
+                fill_territory(inside_points);
+
+                // Render the updated map
+                render_game(win, coordinate_y, coordinate_x);
+            }
         }
         else
         {
@@ -531,14 +552,14 @@ void game_loop(WINDOW *win)
 }
 void initial_game()
 {
-    WINDOW *win1 = create_newwin(height_win1, width_win1, (LINES - width_win1) / 2, (COLS - height_win1) / 2); // size and location
+    WINDOW *win1 = create_newwin(HEIGHT_WIN1, WIDTH_WIN1, (LINES - HEIGHT_WIN1) / 2, (COLS - WIDTH_WIN1) / 2); // size and location
     get_name_and_greet(win1);
     delwin(win1);
     clear();
     wrefresh(stdscr);
     // game loop
     noecho(); // disable displaying inputq
-    WINDOW *win2 = create_newwin(height_win2, width_win2, (LINES - width_win2) / 2, (COLS - height_win2) / 2);
+    WINDOW *win2 = create_newwin(HEIGHT_WIN2, WIDTH_WIN2, (LINES - HEIGHT_WIN2) / 2, (COLS - WIDTH_WIN2) / 2);
     game_loop(win2);
     echo(); // enable displaying input again
     delwin(win2);
@@ -547,9 +568,9 @@ void initial_game()
 void exit_game(WINDOW *win, int flag)
 {
     // send to server
-    for (int i = 0; i < height_win2; i++)
+    for (int i = 0; i < HEIGHT_WIN2; i++)
     {
-        for (int j = 0; j < width_win2; j++)
+        for (int j = 0; j < WIDTH_WIN2; j++)
         {
             if (map[i][j] == -id)
             {
@@ -569,7 +590,7 @@ void exit_game(WINDOW *win, int flag)
                 werase(win);
                 box(win, 0, 0);
                 snprintf(msg, 11 - j, "Exiting...");
-                mvwprintw(win, 1, width_win2 / 2 - 4, "%s", msg);
+                mvwprintw(win, 1, WIDTH_WIN2 / 2 - 4, "%s", msg);
                 wrefresh(win);
                 usleep(500000);
             }
@@ -580,7 +601,7 @@ void exit_game(WINDOW *win, int flag)
     {
         werase(win);
         box(win, 0, 0);
-        mvwprintw(win, 1, width_win2 / 2 - 4, "You died!");
+        mvwprintw(win, 1, WIDTH_WIN2 / 2 - 4, "You died!");
         wrefresh(win);
         sleep(2);
         werase(win);
