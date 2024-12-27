@@ -5,7 +5,7 @@ PROGS = splix_client
 all:$(PROGS)
 
 splix_client: splix_client.cpp
-	g++ $(CFLAGS) -o $@ $< $(LIBS) -lncurses
+	g++ $(CFLAGS) -o $@ $< $(LIBS) -lncursesw
 test: test.cpp
 	g++ $(CFLAGS) -o $@ $< $(LIBS) -lncurses
 clean:

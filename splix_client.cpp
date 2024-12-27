@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <queue>
+#include <chrono>
 #include "unp.h"
 using namespace std;
 
@@ -11,10 +12,11 @@ using namespace std;
 #define map_width 600
 
 // size of windows
-#define height_win2 30
+#define height_win2 50
 #define width_win2 50
-#define height_win1 10
-#define width_win1 100
+
+#define height_win1 50
+#define width_win1 50
 
 // functions
 void render_game(WINDOW *win, int coordinate_y, int coordinate_x);
@@ -29,7 +31,6 @@ void initial_game();
 void exit_game(WINDOW *win, int flag);
 void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x);
 
-
 // id allocate by server
 const int id = 1;
 int map[map_height][map_width];
@@ -38,6 +39,7 @@ int main()
 {
     // signal(SIGWINCH, SIG_IGN); /* ignore window size changes */
     initscr();
+    setlocale(LC_ALL, "");
     start_color();
     cbreak();             // disable line buffering, but allow signals(ctrl+c, ctrl+z, etc.)
     keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
@@ -69,6 +71,7 @@ int main()
 }
 
 // functions
+
 void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
 {
     int win_rows, win_cols;
@@ -143,7 +146,28 @@ void render_game(WINDOW *win, int coordinate_y, int coordinate_x)
     // Refresh the window after rendering
     wrefresh(win);
 }
+void Rendertitle(WINDOW *win)
+{
+    int maxY, maxX;
+    getmaxyx(win, maxY, maxX);
+    setlocale(LC_ALL, "");
 
+    const wchar_t *title[] = {
+        L"███████╗██████╗ ██╗     ██╗██╗  ██╗   ██╗ ██████╗ ",
+        L"██╔════╝██╔══██╗██║     ██║╚██╗██╔╝   ██║██╔═══██╗",
+        L"███████╗██████╔╝██║     ██║ ╚███╔╝    ██║██║   ██║",
+        L"╚════██║██╔═══╝ ██║     ██║ ██╔██╗    ██║██║   ██║",
+        L"███████║██║     ███████╗██║██╔╝ ██╗██╗██║╚██████╔╝",
+        L"╚══════╝╚═╝     ╚══════╝╚═╝╚═╝  ╚═╝╚═╝╚═╝ ╚═════╝ ",
+    };
+    int artWidth = wcslen(title[0]);
+    int startX = (maxX - artWidth) / 2;
+    int artLines = sizeof(title) / sizeof(title[0]);
+    int startY = 1;
+    for (int i = 0; i < artLines; i++)
+        mvwaddwstr(win, startY + i, startX, title[i]);
+    wrefresh(win);
+}
 WINDOW *create_newwin(int height, int width, int starty, int startx)
 {
     // int yMax, xMax;
@@ -156,7 +180,9 @@ WINDOW *create_newwin(int height, int width, int starty, int startx)
 
 WINDOW *get_name_window(int height, int width)
 {
-    WINDOW *win = newwin(height / 3, width / 2, 2, width / 2 - width / 4);
+    int name_height = height / 15;
+    int name_width = width - 4;
+    WINDOW *win = newwin(name_height, name_width, 10, (COLS - name_width) / 2);
     box(win, 0, 0);
     wbkgd(win, COLOR_PAIR(4));
     mvwprintw(win, 1, 1, "Enter your name");
@@ -236,37 +262,17 @@ void get_user_input(WINDOW *win, char *name)
 }
 void get_name_and_greet(WINDOW *win)
 {
-    // get window size
-    int rows, cols;
-    getmaxyx(win, rows, cols);
     // show title
     wattron(win, COLOR_PAIR(2) | A_BOLD);
-    mvwprintw(win, 1, cols / 2 - 4, "Splix.io");
+    Rendertitle(win);
     wattroff(win, COLOR_PAIR(2) | A_BOLD);
-    wrefresh(win);
     // create input window
-    WINDOW *name_win = get_name_window(rows, cols);
+    WINDOW *name_win = get_name_window(height_win1, width_win1);
     // get name
     char name[50] = "";
     get_user_input(name_win, name);
     // after that, send to server
     delwin(name_win);
-    // greet
-    /*char msg[100];
-    sprintf(msg, "Welcome to Splix.io %s!", name);
-    werase(win);
-    box(win, 0, 0);
-    wattron(win, COLOR_PAIR(2) | A_BOLD);
-    mvwprintw(win, 1, cols / 2 - strlen(msg) / 2, "%s", msg);
-    wrefresh(win);
-    sleep(1);
-    mvwprintw(win, 2, cols / 2 - 15, "WASD to move, or 'q' to quit.");
-    wrefresh(win);
-    sleep(2);
-    mvwprintw(win, rows - 2, cols / 2 - 15, "Press any key to continue...");
-    wattroff(win, COLOR_PAIR(2) | A_BOLD);
-    wgetch(win); // wait for next character, or it will skip the greeting msg
-    */
 }
 void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x)
 {
@@ -290,36 +296,129 @@ void create_initial_territory(WINDOW *win, int coordinate_y, int coordinate_x)
     render_game(win, coordinate_y, coordinate_x);
     // send map to server
 }
-void fill_territory(int coordinate_y, int coordinate_x, WINDOW *win)
+pair<int, int> find_inside_point(int height, int width)
 {
-    // fill territory
-    // flood fill algorithm
-    // 1. check if the current cell is empty or not
-    // 2. if empty, fill it and check the 4 adjacent cells
-    // 3. if not empty, return
+    vector<vector<bool>> visited(height, vector<bool>(width, false));
     queue<pair<int, int>> q;
-    q.push({coordinate_y, coordinate_x});
+
+    int dy[] = {-1, 1, 0, 0};
+    int dx[] = {0, 0, -1, 1};
+
+    // Mark all border and territory cells as "outside"
+    for (int i = 0; i < height; i++)
+    {
+        for (int j : {0, width - 1})
+        {
+            if ((map[i][j] != 0 && map[i][j] != id) || visited[i][j])
+            {
+                visited[i][j] = true;
+            }
+            else
+            {
+                q.push({i, j});
+                visited[i][j] = true;
+            }
+        }
+    }
+    for (int j = 0; j < width; j++)
+    {
+        for (int i : {0, height - 1})
+        {
+            if ((map[i][j] != 0 && map[i][j] != id) || visited[i][j])
+            {
+                visited[i][j] = true;
+            }
+            else
+            {
+                q.push({i, j});
+                visited[i][j] = true;
+            }
+        }
+    }
+
+    // Flood fill from borders to mark outside points
     while (!q.empty())
     {
-        pair<int, int> cur = q.front();
+        auto [y, x] = q.front();
         q.pop();
-        // check out of bound and if the cell is filled or not condition
-        if (cur.first < 1 || cur.first > height_win2 - 2 || cur.second < 1 || cur.second > width_win2 - 2 || map[cur.first][cur.second] == -id)
-            continue;
-        // if the cell reaches the trail, fill it
-        if (map[cur.first][cur.second] == id)
+
+        for (int d = 0; d < 4; d++)
         {
-            map[cur.first][cur.second] = -id;
-            continue;
+            int ny = y + dy[d];
+            int nx = x + dx[d];
+
+            if (ny < 0 || ny >= height || nx < 0 || nx >= width || visited[ny][nx])
+                continue;
+
+            if (map[ny][nx] != 0 && map[ny][nx] != id)
+                continue;
+
+            visited[ny][nx] = true;
+            q.push({ny, nx});
         }
-        map[cur.first][cur.second] = -id;
-        q.push({cur.first + 1, cur.second});
-        q.push({cur.first - 1, cur.second});
-        q.push({cur.first, cur.second + 1});
-        q.push({cur.first, cur.second - 1});
     }
+
+    // Find the first unvisited point surrounded by the trail
+    for (int y = 1; y < height - 1; y++)
+    {
+        for (int x = 1; x < width - 1; x++)
+        {
+            if (!visited[y][x] && map[y][x] == 0)
+            { // Must be empty
+                return {y, x};
+            }
+        }
+    }
+
+    return {-1, -1}; // No inside point found
+}
+
+void fill_territory(int coordinate_y, int coordinate_x, WINDOW *win)
+{
+    queue<pair<int, int>> q;
+    q.push({coordinate_y, coordinate_x});
+
+    int dy[] = {-1, 1, 0, 0};
+    int dx[] = {0, 0, -1, 1};
+
+    while (!q.empty())
+    {
+        auto [y, x] = q.front();
+        q.pop();
+
+        if (y < 0 || y >= map_height || x < 0 || x >= map_width || map[y][x] == -id)
+            continue;
+
+        if (map[y][x] == id)
+        {
+            map[y][x] = -id;
+        }
+        else
+        {
+            map[y][x] = -id;
+            for (int d = 0; d < 4; d++)
+            {
+                q.push({y + dy[d], x + dx[d]});
+            }
+        }
+    }
+
     render_game(win, coordinate_y, coordinate_x);
-    // send map to server
+}
+
+bool handle_fill_territory(WINDOW *win)
+{
+    // Find an inside point
+    pair<int, int> inside_point = find_inside_point(map_height, map_width);
+    if (inside_point.first == -1)
+    {
+        mvwprintw(win, 0, 0, "No enclosed area found!");
+        wrefresh(win);
+        return false;
+    }
+
+    // Fill the territory starting from the inside point
+    fill_territory(inside_point.first, inside_point.second, win);
 }
 int check_valid_position(int coordinate_y, int coordinate_x, WINDOW *win)
 {
@@ -409,19 +508,18 @@ void game_loop(WINDOW *win)
             }
         }
         // update position
-        int prev_y = coordinate_y, prev_x = coordinate_x;
+
         coordinate_y += direction.first;
         coordinate_x += direction.second;
 
         // check if die or not
         if (!check_valid_position(coordinate_y, coordinate_x, win))
             return;
-        //check the territory
+        // check the territory
         if (map[coordinate_y][coordinate_x] == -id)
         {
-            // if circle back to
-            fill_territory(prev_y, prev_x, win);
-            // else, moving on its own territory
+            // if circled, else, moving on its own territory
+            handle_fill_territory(win);
         }
         else
         {
@@ -433,14 +531,14 @@ void game_loop(WINDOW *win)
 }
 void initial_game()
 {
-    WINDOW *win1 = create_newwin(height_win1, width_win1, 0, 0); // size and location
+    WINDOW *win1 = create_newwin(height_win1, width_win1, (LINES - width_win1) / 2, (COLS - height_win1) / 2); // size and location
     get_name_and_greet(win1);
     delwin(win1);
     clear();
     wrefresh(stdscr);
     // game loop
     noecho(); // disable displaying inputq
-    WINDOW *win2 = create_newwin(height_win2, width_win2, 0, 0);
+    WINDOW *win2 = create_newwin(height_win2, width_win2, (LINES - width_win2) / 2, (COLS - height_win2) / 2);
     game_loop(win2);
     echo(); // enable displaying input again
     delwin(win2);
