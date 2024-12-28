@@ -178,9 +178,13 @@ int main()
         Input_Window input_win(HEIGHT_INIT_WIN / 12, WIDTH_GAME_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 12) / 2.5, (COLS - WIDTH_GAME_WIN / 2) / 2);
         Status_Window stat_win(HEIGHT_GAME_WIN / 10, WIDTH_GAME_WIN / 4, (LINES - HEIGHT_GAME_WIN) / 2, (COLS + WIDTH_GAME_WIN) / 2);
         Splix_Window splix_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
-
+        Gameover_Window gameover_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
+        
+        //uncomment these two lines to test server
         // int sockfd = connect_to_server();
         std::vector<std::pair<int, int>> room_info;
+
+        //comment these two lines to test server
         room_info.push_back({1, 2});
         room_info.push_back({2, 3});
         switch (status)
@@ -190,7 +194,7 @@ int main()
             init_win.Rendertitle();
             input_win.draw();
             input_win.get_user_input();
-            // send name to server
+            // uncomment these two lines to test server
             // send_server_name(sockfd, input_win.name);
             // room_info = receive_room_info(sockfd);
             status = GameStatus::ROOM_SELECTION;
@@ -204,7 +208,8 @@ int main()
                 status = GameStatus::INITIAL;
                 break;
             }
-            //send_server_room(sockfd, room_info[room_win.selected_room].first);
+            // uncomment this line to test server
+            // send_server_room(sockfd, room_info[room_win.selected_room].first);
             status = GameStatus::GAMING;
             break;
         case GameStatus::GAMING:
@@ -215,18 +220,10 @@ int main()
             break;
         case GameStatus::GAME_OVER:
             // show game over
-            mvwprintw(stdscr, 0, 0, "Game Over. Press 'r' to restart or 'q' to quit.");
-            refresh();
-
-            int ch = getch();
-            if (ch == 'q')
-            {
-                endwin(); // Exit the loop, ending the program
-            }
-            else if (ch != 'r')
-            {
-                status = GameStatus::INITIAL; // Default behavior is to exit unless 'r' is pressed
-            }
+            curs_set(0);
+            gameover_win.render_gameover();
+            sleep(3);
+            status = GameStatus::INITIAL;
             break;
         }
         // after game over

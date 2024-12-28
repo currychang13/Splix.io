@@ -50,6 +50,8 @@ void Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
     wattroff(win, A_REVERSE);
     wrefresh(win);
 
+    // quit message
+    mvwprintw(win, win_height - 2, (win_width - 25) / 2, "Press 'q' to return lobby");
     while (!selected)
     {
         int ch = wgetch(win);
@@ -101,7 +103,7 @@ void Room_Window::Renderroom()
         L"███████╗█████╗  ██║     █████╗  ██║        ██║       ██████╔╝██║   ██║██║   ██║██╔████╔██║███████",
         L"╚════██║██╔══╝  ██║     ██╔══╝  ██║        ██║       ██╔══██╗██║   ██║██║   ██║██║╚██╔╝██║╚════██║",
         L"███████║███████╗███████╗███████╗╚██████╗   ██║       ██║  ██║╚██████╔╝╚██████╔╝██║ ╚═╝ ██║███████║",
-        L"╚══════╝╚══════╝╚══════╝╚══════╝ ╚═════╝   ╚═╝       ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝     ╚═╝╚══════╝ ",
+        L"╚══════╝╚══════╝╚══════╝╚══════╝ ╚═════╝   ╚═╝       ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝     ╚═╝╚══════╝",
     };
     int artWidth = wcslen(title[0]);
     int startX = (maxX - artWidth) / 2;
@@ -112,6 +114,7 @@ void Room_Window::Renderroom()
     wrefresh(win);
     wattroff(win, COLOR_PAIR(1) | A_BOLD);
 }
+
 // Input_Window functions
 void Input_Window::get_user_input()
 {
@@ -148,15 +151,13 @@ void Input_Window::get_user_input()
                 mvwprintw(win, 1, 1, "%s ", name); // Redraw string and clear last char
                 wmove(win, 1, cursor_position);    // Set cursor position
             }
-            else
+
+            if (cursor_position <= 1)
             {
                 wmove(win, 1, 1);
-                if (i == 0)
-                {
-                    mvwprintw(win, 1, 1, "Enter your name");
-                }
-                continue;
+                mvwprintw(win, 1, 1, "Enter your name");
             }
+            continue;
         }
         if (ch == KEY_LEFT || ch == KEY_RIGHT || ch == KEY_UP || ch == KEY_DOWN)
         {
@@ -500,4 +501,30 @@ void Splix_Window::exit_game(int flag)
         wrefresh(win);
         return;
     }
+}
+
+void Gameover_Window::render_gameover()
+{
+    wattron(win, COLOR_PAIR(1) | A_BOLD);
+    int maxX = getmaxx(win);
+    setlocale(LC_ALL, "");
+    const wchar_t *title[] = {
+        L"  ▄████  ▄▄▄       ███▄ ▄███▓▓█████     ▒█████   ██▒   █▓▓█████  ██▀███  ",
+        L" ██▒ ▀█▒▒████▄    ▓██▒▀█▀ ██▒▓█   ▀    ▒██▒  ██▒▓██░   █▒▓█   ▀ ▓██ ▒ ██▒",
+        L"▒██░▄▄▄░▒██  ▀█▄  ▓██    ▓██░▒███      ▒██░  ██▒ ▓██  █▒░▒███   ▓██ ░▄█ ",
+        L"░▓█  ██▓░██▄▄▄▄██ ▒██    ▒██ ▒▓█  ▄    ▒██   ██░  ▒██ █░░▒▓█  ▄ ▒██▀▀█▄ ",
+        L"░▒▓███▀▒ ▓█   ▓██▒▒██▒   ░██▒░▒████▒   ░ ████▓▒░   ▒▀█░  ░▒████▒░██▓ ▒██▒",
+        L"░▒   ▒  ▒▒   ▓▒█░░ ▒░   ░  ░░░ ▒░ ░   ░ ▒░▒░▒░    ░ ▐░  ░░ ▒░ ░░ ▒▓ ░▒▓░",
+        L" ░   ░   ▒   ▒▒ ░░  ░      ░ ░ ░  ░     ░ ▒ ▒░    ░ ░░   ░ ░  ░  ░ ░▒ ░ ▒░",
+        L"░ ░   ░  ░   ▒   ░      ░      ░      ░ ░ ░ ▒      ░░     ░     ░ ░░   ░ ",
+        L"      ░      ░  ░       ░      ░  ░       ░ ░       ░     ░  ░    ░     ░ ",
+    };
+    int artWidth = wcslen(title[0]);
+    int startX = (maxX - artWidth) / 2;
+    int artLines = sizeof(title) / sizeof(title[0]);
+    int startY = 3;
+    for (int i = 0; i < artLines; i++)
+        mvwaddwstr(win, startY + i, startX, title[i]);
+    wrefresh(win);
+    wattroff(win, COLOR_PAIR(1) | A_BOLD);
 }

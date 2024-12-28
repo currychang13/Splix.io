@@ -106,4 +106,11 @@ public:
     void select_room(std::vector<std::pair<int, int>> room_info);
 };
 
+class Gameover_Window : public Window
+{
+public:
+    Gameover_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
+    void render_gameover();
+};
+
 #endif
