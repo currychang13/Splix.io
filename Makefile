@@ -1,8 +1,11 @@
 
-PROGS = splix_client splix_client.o
+PROGS = splix_client splix_client.o server
 .PHONY: all clean
 
 all:$(PROGS)
+
+server: server.cpp
+	g++ $(CFLAGS) -I. -c $< -o $@ 
 
 splix_client: splix_client.o splix_util.o
 	g++ -o $@ $^ $(LIBS) -lncursesw
