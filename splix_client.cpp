@@ -15,7 +15,8 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
     keypad(game_win->win, TRUE);
     nodelay(game_win->win, TRUE); // Non-blocking input
     wattron(game_win->win, COLOR_PAIR(1) | A_BOLD);
-
+    game_win->draw();
+    stat_win->draw();
     // get map from server
     for (int i = 0; i < MAP_HEIGHT; i++)
     {
@@ -120,14 +121,10 @@ int main()
     init_pair(3, COLOR_WHITE, COLOR_BLACK);
     init_pair(4, COLOR_BLACK, COLOR_WHITE);
     init_pair(5, COLOR_BLUE, COLOR_BLACK);
-
+    GameStatus status = GameStatus::INITIAL;
     // windows
     while (true)
     {
-        // WINDOW *win1 = newwin(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2); // size and location
-        // WINDOW *win2 = newwin(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
-        // WINDOW *win3 = newwin(HEIGHT_GAME_WIN / 10, WIDTH_GAME_WIN / 4, (LINES - HEIGHT_GAME_WIN) / 2, (COLS + WIDTH_GAME_WIN) / 2);
-        GameStatus status = GameStatus::INITIAL;
         Initial_Window init_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
         Input_Window input_win(HEIGHT_INIT_WIN / 12, WIDTH_GAME_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 12) / 2.5, (COLS - WIDTH_GAME_WIN / 2) / 2);
         Status_Window stat_win(HEIGHT_GAME_WIN / 10, WIDTH_GAME_WIN / 4, (LINES - HEIGHT_GAME_WIN) / 2, (COLS + WIDTH_GAME_WIN) / 2);
@@ -137,8 +134,8 @@ int main()
         case GameStatus::INITIAL:
             init_win.draw();
             init_win.Rendertitle();
-            //clear();
-            //wrefresh(stdscr);
+            // clear();
+            // wrefresh(stdscr);
             input_win.draw();
             input_win.get_user_input();
             status = GameStatus::GAMING;
@@ -151,22 +148,21 @@ int main()
             break;
         case GameStatus::GAME_OVER:
             // show game over
-            /*mvwprintw(stdscr, 0, 0, "Game Over. Press 'r' to restart or 'q' to quit.");
+            mvwprintw(stdscr, 0, 0, "Game Over. Press 'r' to restart or 'q' to quit.");
             refresh();
 
             int ch = getch();
             if (ch == 'q')
             {
-                break; // Exit the loop, ending the program
+                endwin(); // Exit the loop, ending the program
             }
             else if (ch != 'r')
             {
-                break; // Default behavior is to exit unless 'r' is pressed
-            }*/
+                status = GameStatus::INITIAL; // Default behavior is to exit unless 'r' is pressed
+            }
             break;
         }
         // after game over
     }
-    endwin();
     return 0;
 }
