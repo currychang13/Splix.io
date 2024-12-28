@@ -1,4 +1,4 @@
-include ../Make.defines
+
 PROGS = splix_client splix_client.o
 .PHONY: all clean
 

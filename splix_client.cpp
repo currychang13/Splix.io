@@ -180,7 +180,6 @@ int main()
         Splix_Window splix_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
 
         // int sockfd = connect_to_server();
-        // send_server_name(sockfd, input_win.name);
         std::vector<std::pair<int, int>> room_info;
         room_info.push_back({1, 2});
         room_info.push_back({2, 3});
