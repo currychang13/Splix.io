@@ -1,7 +1,199 @@
 #include "splix_header.h"
-// functions
+// Initial_Window functions
+void Initial_Window::Rendertitle()
+{
+    wattron(win, COLOR_PAIR(1) | A_BOLD);
+    int maxX = getmaxx(win);
+    setlocale(LC_ALL, "");
+    const wchar_t *title[] = {
+        L"███████╗██████╗ ██╗     ██╗██╗  ██╗   ██╗ ██████╗ ",
+        L"██╔════╝██╔══██╗██║     ██║╚██╗██╔╝   ██║██╔═══██╗",
+        L"███████╗██████╔╝██║     ██║ ╚███╔╝    ██║██║   ██║",
+        L"╚════██║██╔═══╝ ██║     ██║ ██╔██╗    ██║██║   ██║",
+        L"███████║██║     ███████╗██║██╔╝ ██╗██╗██║╚██████╔╝",
+        L"╚══════╝╚═╝     ╚══════╝╚═╝╚═╝  ╚═╝╚═╝╚═╝ ╚═════╝ ",
+    };
+    int artWidth = wcslen(title[0]);
+    int startX = (maxX - artWidth) / 2;
+    int artLines = sizeof(title) / sizeof(title[0]);
+    int startY = 3;
+    for (int i = 0; i < artLines; i++)
+        mvwaddwstr(win, startY + i, startX, title[i]);
+    wrefresh(win);
+    wattroff(win, COLOR_PAIR(1) | A_BOLD);
+}
 
-// render functions
+// Room_Window functions
+void Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
+{
+    nodelay(win, TRUE); // Non-blocking input
+    keypad(win, TRUE);
+
+    // Get the dimensions of the window
+    int win_height, win_width;
+    getmaxyx(win, win_height, win_width);
+
+    // Display all room options
+    for (int i = 0; i < (int)room_info.size(); i++)
+    {
+        std::string room_str = "Room " + std::to_string(room_info[i].first) + ": " + std::to_string(room_info[i].second) + " players";
+        mvwprintw(win, 2 * i + 15, (win_width - room_str.length()) / 2, "%s", room_str.c_str());
+    }
+
+    bool selected = false;
+    selected_room = 0;
+
+    // Highlight the initial selection
+    wattron(win, A_REVERSE);
+    std::string initial_str = "Room " + std::to_string(room_info[0].first) + ": " + std::to_string(room_info[0].second) + " players";
+    mvwprintw(win, 15, (win_width - initial_str.length()) / 2, "%s", initial_str.c_str());
+    wattroff(win, A_REVERSE);
+    wrefresh(win);
+
+    while (!selected)
+    {
+        int ch = wgetch(win);
+
+        // Remove highlighting from the currently selected room
+        std::string current_str = "Room " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players";
+        mvwprintw(win, 2 * selected_room + 15, (win_width - current_str.length()) / 2, "%s", current_str.c_str());
+
+        if (ch == KEY_UP)
+        {
+            // Move selection up
+            selected_room = (selected_room - 1 >= 0) ? selected_room - 1 : 0;
+        }
+        else if (ch == KEY_DOWN)
+        {
+            // Move selection down
+            selected_room = (selected_room + 1 < (int)room_info.size()) ? selected_room + 1 : room_info.size() - 1;
+        }
+        else if (ch == '\n')
+        {
+            // Confirm selection
+            selected = true;
+        }
+        else if (ch == 'q')
+        {
+            // Quit
+            quit = true;
+            break;
+        }
+
+        // Highlight the newly selected room
+        wattron(win, A_REVERSE);
+        std::string new_str = "Room " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players";
+        mvwprintw(win, 2 * selected_room + 15, (win_width - new_str.length()) / 2, "%s", new_str.c_str());
+        wattroff(win, A_REVERSE);
+
+        // Refresh the window to display changes
+        wrefresh(win);
+    }
+}
+void Room_Window::Renderroom()
+{
+    wattron(win, COLOR_PAIR(1) | A_BOLD);
+    int maxX = getmaxx(win);
+    setlocale(LC_ALL, "");
+    const wchar_t *title[] = {
+        L"███████╗███████╗██╗     ███████╗ ██████╗████████╗    ██████╗  ██████╗  ██████╗ ███╗   ███╗███████╗",
+        L"██╔════╝██╔════╝██║     ██╔════╝██╔════╝╚══██╔══╝    ██╔══██╗██╔═══██╗██╔═══██╗████╗ ████║██╔════╝",
+        L"███████╗█████╗  ██║     █████╗  ██║        ██║       ██████╔╝██║   ██║██║   ██║██╔████╔██║███████",
+        L"╚════██║██╔══╝  ██║     ██╔══╝  ██║        ██║       ██╔══██╗██║   ██║██║   ██║██║╚██╔╝██║╚════██║",
+        L"███████║███████╗███████╗███████╗╚██████╗   ██║       ██║  ██║╚██████╔╝╚██████╔╝██║ ╚═╝ ██║███████║",
+        L"╚══════╝╚══════╝╚══════╝╚══════╝ ╚═════╝   ╚═╝       ╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝     ╚═╝╚══════╝ ",
+    };
+    int artWidth = wcslen(title[0]);
+    int startX = (maxX - artWidth) / 2;
+    int artLines = sizeof(title) / sizeof(title[0]);
+    int startY = 3;
+    for (int i = 0; i < artLines; i++)
+        mvwaddwstr(win, startY + i, startX, title[i]);
+    wrefresh(win);
+    wattroff(win, COLOR_PAIR(1) | A_BOLD);
+}
+// Input_Window functions
+void Input_Window::get_user_input()
+{
+    noecho(); // enable displaying input
+    keypad(win, TRUE);
+    wmove(win, 1, 1);
+    int ch, i = 0, cursor_position = 1;
+    memset(name, 0, name_length);
+    while (true)
+    {
+        ch = wgetch(win);
+        if (ch == '\n')
+        {
+            break;
+        }
+        if (i == 0)
+        {
+            mvwprintw(win, 1, 1, "                ");
+        }
+        if (ch == KEY_BACKSPACE)
+        {
+            if (cursor_position > 1)
+            {
+                // Shift characters to the left
+                for (int j = cursor_position - 1; j < i; j++)
+                {
+                    name[j - 1] = name[j];
+                }
+
+                i--;            // Reduce string length
+                name[i] = '\0'; // Null-terminate the string
+
+                cursor_position--;                 // Move cursor position back
+                mvwprintw(win, 1, 1, "%s ", name); // Redraw string and clear last char
+                wmove(win, 1, cursor_position);    // Set cursor position
+            }
+            else
+            {
+                wmove(win, 1, 1);
+                if (i == 0)
+                {
+                    mvwprintw(win, 1, 1, "Enter your name");
+                }
+                continue;
+            }
+        }
+        if (ch == KEY_LEFT || ch == KEY_RIGHT || ch == KEY_UP || ch == KEY_DOWN)
+        {
+            switch (ch)
+            {
+            case KEY_LEFT:
+                if (cursor_position > 1)
+                    --cursor_position;
+                break;
+            case KEY_RIGHT:
+                if (cursor_position <= (int)strlen(name))
+                    ++cursor_position;
+                break;
+            default:
+                break;
+            }
+        }
+        else if (i < name_length && isprint(ch))
+        {
+            i++; // Increase string length
+            // Insert the character at the cursor position
+            for (int j = i; j >= cursor_position - 1; j--)
+            {
+                name[j + 1] = name[j];
+            }
+            name[cursor_position - 1] = ch;
+
+            name[i] = '\0';                   // Null-terminate the string
+            cursor_position++;                // Move cursor position forward
+            mvwprintw(win, 1, 1, "%s", name); // Redraw string
+            wrefresh(win);
+        }
+        wmove(win, 1, cursor_position); // Set cursor position
+    }
+}
+
+// Splix_Window functions
 void Splix_Window::render_game(int coordinate_y, int coordinate_x)
 {
     int win_rows, win_cols;
@@ -74,104 +266,6 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
     // Refresh the window after rendering
     wrefresh(win);
 }
-void Initial_Window::Rendertitle()
-{
-    wattron(win, COLOR_PAIR(1) | A_BOLD);
-    int maxX = getmaxx(win);
-    setlocale(LC_ALL, "");
-    const wchar_t *title[] = {
-        L"███████╗██████╗ ██╗     ██╗██╗  ██╗   ██╗ ██████╗ ",
-        L"██╔════╝██╔══██╗██║     ██║╚██╗██╔╝   ██║██╔═══██╗",
-        L"███████╗██████╔╝██║     ██║ ╚███╔╝    ██║██║   ██║",
-        L"╚════██║██╔═══╝ ██║     ██║ ██╔██╗    ██║██║   ██║",
-        L"███████║██║     ███████╗██║██╔╝ ██╗██╗██║╚██████╔╝",
-        L"╚══════╝╚═╝     ╚══════╝╚═╝╚═╝  ╚═╝╚═╝╚═╝ ╚═════╝ ",
-    };
-    int artWidth = wcslen(title[0]);
-    int startX = (maxX - artWidth) / 2;
-    int artLines = sizeof(title) / sizeof(title[0]);
-    int startY = 3;
-    for (int i = 0; i < artLines; i++)
-        mvwaddwstr(win, startY + i, startX, title[i]);
-    wrefresh(win);
-    wattroff(win, COLOR_PAIR(1) | A_BOLD);
-}
-
-// window functions
-
-// input functions
-void Input_Window::get_user_input()
-{
-    echo(); // enable displaying input
-    keypad(win, TRUE);
-    wmove(win, 1, 1);
-    int ch, i = 0, cursor_position = 1;
-    memset(name, 0, name_length);
-    while ((ch = wgetch(win)) != '\n')
-    {
-        if (i == 0)
-        {
-            mvwprintw(win, 1, 1, "                ");
-        }
-        if (ch == KEY_BACKSPACE)
-        {
-            if (cursor_position > 1)
-            {
-                // Shift characters to the left
-                for (int j = cursor_position - 1; j < i; j++)
-                {
-                    name[j - 1] = name[j];
-                }
-
-                i--;            // Reduce string length
-                name[i] = '\0'; // Null-terminate the string
-
-                cursor_position--;                 // Move cursor position back
-                mvwprintw(win, 1, 1, "%s ", name); // Redraw string and clear last char
-                wmove(win, 1, cursor_position);    // Set cursor position
-                wrefresh(win);
-            }
-            else
-            {
-                wmove(win, 1, 1);
-                continue;
-            }
-        }
-        else if (ch == KEY_LEFT || ch == KEY_RIGHT || ch == KEY_UP || ch == KEY_DOWN)
-        {
-            switch (ch)
-            {
-            case KEY_LEFT:
-                if (cursor_position > 1)
-                    wmove(win, 1, --cursor_position);
-                break;
-            case KEY_RIGHT:
-                if (cursor_position <= (int)strlen(name))
-                    wmove(win, 1, ++cursor_position);
-                break;
-            default:
-                break;
-            }
-        }
-        else if (i < name_length)
-        {
-            // Insert the character at the cursor position
-            for (int j = i; j >= cursor_position - 1; j--)
-            {
-                name[j + 1] = name[j];
-            }
-            name[cursor_position - 1] = ch;
-
-            i++;                            // Increase string length
-            cursor_position++;              // Move cursor position forward
-            wmove(win, 1, cursor_position); // Set cursor position
-        }
-        mvwprintw(win, 1, 1, "%s", name); // Redraw string
-    }
-    noecho(); // disable displaying input
-}
-
-// game functions
 void Status_Window::update_status(int coordinate_y, int coordinate_x)
 {
     // Update the status window
@@ -200,12 +294,12 @@ void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
     // 1. create a rectangle
     // 2. fill the rectangle with the player's -id
     // 3. send the map to the server
-    int dx[] = {0, 1, 0, -1};
-    int dy[] = {1, 0, -1, 0};
-    for (int i = 0; i < 4; i++)
+    int dx[] = {0, 1, -1, 2, -2};
+    int dy[] = {1, 0, -1, 2, -2};
+    for (int i = 0; i < 5; i++)
     {
         int cur_x = coordinate_x + dx[i];
-        for (int j = 0; j < 4; j++)
+        for (int j = 0; j < 5; j++)
         {
             int cur_y = coordinate_y + dy[j];
             if (map[cur_y][cur_x] == -id || cur_x < 0 || cur_x >= MAP_WIDTH || cur_y < 0 || cur_y >= MAP_HEIGHT)
@@ -363,9 +457,6 @@ int Splix_Window::check_valid_position(int coordinate_y, int coordinate_x)
     }
     return 1;
 }
-
-// flow functions
-
 void Splix_Window::exit_game(int flag)
 {
     // send to server

@@ -8,7 +8,10 @@
 #include <queue>
 #include <chrono>
 #include <random>
-#include "unp.h"
+#include <arpa/inet.h>
+#include <string>
+#include <vector>
+#include <thread>
 
 #define MAP_HEIGHT 600
 #define MAP_WIDTH 600
@@ -55,10 +58,8 @@ public:
 
 class Input_Window : public Window
 {
-protected:
-    char name[name_length] = "";
-
 public:
+    char name[name_length] = "";
     void get_user_input();
     Input_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void draw() override
@@ -93,6 +94,16 @@ public:
     std::vector<std::pair<int, int>> find_inside_points();
     void fill_territory(const std::vector<std::pair<int, int>> &inside_points);
     int check_valid_position(int coordinate_y, int coordinate_x);
+};
+
+class Room_Window : public Window
+{
+public:
+    int selected_room = 0;
+    bool quit = false;
+    Room_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
+    void Renderroom();
+    void select_room(std::vector<std::pair<int, int>> room_info);
 };
 
 #endif
