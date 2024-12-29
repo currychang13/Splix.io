@@ -170,7 +170,6 @@ int connect_to_server()
 
     // Connect to server
     connect(sockfd, (const sockaddr *)&servaddr, sizeof(servaddr));
-
     return sockfd;
 }
 void send_server_name(int sockfd, const char *name)

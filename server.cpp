@@ -72,17 +72,6 @@ public:
     {
     }
 
-    int createRoom(const std::string &roomName)
-    {
-        int roomId = nextRoomId++;
-        Room newRoom;
-        newRoom.roomId = roomId;
-        newRoom.roomName = roomName;
-        rooms[roomId] = newRoom;
-        std::cout << "Room created: " << roomName << " with ID " << roomId << std::endl;
-        return roomId;
-    }
-
     void sendRoomInfo(int clientFd, Server &server);
 
     bool joinRoom(int roomId, int clientFd, Server &server);
@@ -122,43 +111,19 @@ public:
     void startGame(int roomId);
     void handleGameMessage(int roomId, const std::string &message);
     void gameLoop(int roomId);
+    bool isGameActive(int roomId);
+    void addPlayerToGame(int roomId, int clientFd);
 
 private:
     RoomManager &roomManager;
     Server &server;
     std::map<int, GameState> gameStates; // roomId -> GameState
-
     void initializeGameState(int roomId);
-    void addPlayerToGame(int roomId, int clientFd);
     void updateAllPlayers(int roomId);
     void checkPlayerDeaths(int roomId);
     void broadcastGameState(int roomId);
-    bool isGameActive(int roomId);
     void endGame(int roomId);
 };
-
-void GameManager::addPlayerToGame(int roomId, int clientFd)
-{
-    pthread_mutex_lock(&server.getGameMutex());
-
-    auto &gameState = gameStates[roomId];
-    Player player;
-    player.fd = clientFd;
-    player.x = rand() % MAP_WIDTH;
-    player.y = rand() % MAP_HEIGHT;
-    player.direction = {0, 1}; // Default direction
-    player.isAlive = true;
-
-    // Add player to game state
-    gameState.players[clientFd] = player;
-    gameState.map[player.y][player.x] = server.getClients().at(clientFd).id;
-
-    // Notify the client of their initial position
-    std::string initMsg = "INIT " + std::to_string(player.x) + " " + std::to_string(player.y) + "\n";
-    write(clientFd, initMsg.c_str(), initMsg.length());
-
-    pthread_mutex_unlock(&server.getGameMutex());
-}
 
 // Server Class
 class Server
@@ -210,24 +175,23 @@ void RoomManager::sendRoomInfo(int clientFd, Server &server)
     {
         perror("write error in sendRoomInfo");
     }
-    char buf[MAXLINE];
-    read(clientFd, buf, MAXLINE);
-    std::cout << buf << "\n";
-    std::stringstream ss;
-    // 2. Send each room's ID and the number of users in the room
-    for (const auto &[roomId, room] : rooms)
+    // Only send room information if there are rooms available
+    if (!rooms.empty())
     {
-        ss << roomId << " " << room.clients.size();
-    }
+        std::stringstream ss;
+        for (const auto &[roomId, room] : rooms)
+        {
+            ss << roomId << " " << room.clients.size() << "\n";
+        }
 
-    // Convert the stringstream to a string
-    std::string info = ss.str();
+        std::string info = ss.str();
 
-    // Send the information to the client
-    if (write(clientFd, info.c_str(), info.length()) < 0)
-    {
-        perror("write error in sendRoomInfo");
+        if (write(clientFd, info.c_str(), info.length()) < 0)
+        {
+            perror("write error in sendRoomInfo");
+        }
     }
+    std::cout << "room info sent\n";
 }
 
 // FILE: server.cpp
@@ -407,6 +371,29 @@ void GameManager::initializeGameState(int roomId)
     {
         write(fd, startMsg.c_str(), startMsg.length());
     }
+}
+
+void GameManager::addPlayerToGame(int roomId, int clientFd)
+{
+    pthread_mutex_lock(&server.getGameMutex());
+
+    auto &gameState = gameStates[roomId];
+    Player player;
+    player.fd = clientFd;
+    player.x = rand() % MAP_WIDTH;
+    player.y = rand() % MAP_HEIGHT;
+    player.direction = {0, 1}; // Default direction
+    player.isAlive = true;
+
+    // Add player to game state
+    gameState.players[clientFd] = player;
+    gameState.map[player.y][player.x] = server.getClients().at(clientFd).id;
+
+    // Notify the client of their initial position
+    std::string initMsg = "INIT " + std::to_string(player.x) + " " + std::to_string(player.y) + "\n";
+    write(clientFd, initMsg.c_str(), initMsg.length());
+
+    pthread_mutex_unlock(&server.getGameMutex());
 }
 
 void GameManager::handleGameMessage(int roomId, const std::string &message)
