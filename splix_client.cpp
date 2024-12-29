@@ -11,7 +11,7 @@
 
 int map[MAP_HEIGHT][MAP_WIDTH];
 Mode mode = Mode::NORMAL;
-int id = rand() % 11;
+int id = 19;
 
 int game_loop(Splix_Window *game_win, Status_Window *stat_win)
 {
@@ -174,7 +174,7 @@ int connect_to_server()
 }
 void send_server_name(int sockfd, const char *name)
 {
-    //add some error handling
+    // add some error handling
     write(sockfd, name, strlen(name));
 }
 std::vector<std::pair<int, int>> receive_room_info(int sockfd)
@@ -201,6 +201,30 @@ void send_server_room(int sockfd, int room_id)
     sprintf(room_str, "%d", room_id);
     write(sockfd, room_str, strlen(room_str));
 }
+std::vector<std::string> receive_member_info(int sockfd, int room_id)
+{
+    std::vector<std::string> member_info;
+    member_info.clear();
+
+    // send room id to server
+    char room_str[100];
+    sprintf(room_str, "%d", room_id);
+    write(sockfd, &room_str, sizeof(room_str));
+
+    // receive member info from server
+    char member_number[100];
+    char member_str[100];
+
+    read(sockfd, member_number, sizeof(member_number));
+    int member_num = atoi(member_number);
+
+    for (int i = 0; i < member_num; i++)
+    {
+        read(sockfd, member_str, sizeof(member_str));
+        member_info.push_back(member_str);
+    }
+    return member_info;
+}
 int main()
 {
     // signal(SIGWINCH, SIG_IGN); /* ignore window size changes */
@@ -212,7 +236,7 @@ int main()
     cbreak();             // disable line buffering, but allow signals(ctrl+c, ctrl+z, etc.)
     keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
     init_color(COLOR_GRAY, 500, 500, 500);
-    //init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple (RGB: 80%, 40%, 90%)
+    // init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple (RGB: 80%, 40%, 90%)
     init_color(COLOR_TEAL, 200, 700, 700);     // Light Teal (RGB: 0%, 50%, 50%)
     init_color(COLOR_CORAL, 1000, 500, 400);   // Coral
     init_color(COLOR_DEEPGRAY, 300, 300, 300); // Dark Gray
@@ -231,6 +255,7 @@ int main()
     init_pair(10, COLOR_TEAL, -1);
 
     // preserved color
+
     init_pair(18, COLOR_RED, COLOR_WHITE);
     init_pair(19, COLOR_GRAY, -1);
     init_pair(20, COLOR_BLACK, COLOR_WHITE);
@@ -252,12 +277,15 @@ int main()
 
     while (true)
     {
-
         std::vector<std::pair<int, int>> room_info;
-
+        std::vector<std::string> member_info;
+        int room_id;
 #ifdef DEBUG
         room_info.push_back({1, 2});
         room_info.push_back({2, 3});
+        member_info.push_back("Mace6728");
+        member_info.push_back("Droplet5269");
+        room_id = 1;
 #endif
         switch (status)
         {
@@ -282,30 +310,43 @@ int main()
                 status = GameStatus::INITIAL;
                 break;
             }
-//#ifndef DEBUG
-            // create a new room
+
+            //  create a new room
             else if (select_room_win.selected_room == room_info.size())
             {
                 create_win.draw();
                 create_win.Render_create_room();
                 cr_input_win.draw();
                 cr_input_win.get_user_input();
-                //send_server_name(sockfd, cr_input_win.name); // send name to server, if room exist, join
+#ifndef DEBUG
+                room_id = send_server_name(sockfd, cr_input_win.name); // send id to server, if room exist, join
+#endif
             }
+#ifndef DEBUG
             // join a room
             else
             {
-                //send_server_room(sockfd, room_info[room_win.selected_room].first);
+                room_id = send_server_room(sockfd, room_info[room_win.selected_room].first);
             }
-//#endif
+#endif
             status = GameStatus::INSIDE_ROOM;
             break;
         case GameStatus::INSIDE_ROOM:
             // inside room
-            // room_win.draw();
-            // room_win.Render_room();
-            // room_win.inside_room();
-            status = GameStatus::GAMING;
+            room_win.draw();
+            room_win.Render_room();
+#ifndef DEBUG
+            member_info = receive_memeber_info(sockfd, room_id);
+#endif
+            room_win.inside_room(member_info, room_id);
+            if (room_win.selected_object == member_info.size())
+            {
+                status = GameStatus::GAMING;
+            }
+            else if (room_win.selected_object == member_info.size() + 1)
+            {
+                status = GameStatus::ROOM_SELECTION;
+            }
             break;
         case GameStatus::GAMING:
             noecho(); // disable displaying input

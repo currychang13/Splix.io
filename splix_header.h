@@ -64,8 +64,42 @@ public:
     }
     virtual void draw()
     {
-        box(win, 0, 0);
+        Custom_Border_2(win);
         wrefresh(win);
+    }
+    void Custom_Border_1(WINDOW *win)
+    {
+        std::setlocale(LC_ALL, ""); // Ensure wide character support
+        // Define cchar_t variables for border characters
+        cchar_t vertical, horizontal, topLeft, topRight, bottomLeft, bottomRight;
+        // Set wide characters directly
+        setcchar(&vertical, L"│", 0, 0, nullptr);
+        setcchar(&horizontal, L"─", 0, 0, nullptr);
+        setcchar(&topLeft, L"╭", 0, 0, nullptr);
+        setcchar(&topRight, L"╮", 0, 0, nullptr);
+        setcchar(&bottomLeft, L"╰", 0, 0, nullptr);
+        setcchar(&bottomRight, L"╯", 0, 0, nullptr);
+
+        // Draw the custom border
+        wborder_set(win, &vertical, &vertical, &horizontal, &horizontal,
+                    &topLeft, &topRight, &bottomLeft, &bottomRight);
+    }
+    void Custom_Border_2(WINDOW *win)
+    {
+        std::setlocale(LC_ALL, ""); // Ensure wide character support
+        // Define cchar_t variables for border characters
+        cchar_t vertical, horizontal, topLeft, topRight, bottomLeft, bottomRight;
+        // Set wide characters directly
+        setcchar(&vertical, L"║", 0, 0, nullptr);
+        setcchar(&horizontal, L"═", 0, 0, nullptr);
+        setcchar(&topLeft, L"╔", 0, 0, nullptr);
+        setcchar(&topRight, L"╗", 0, 0, nullptr);
+        setcchar(&bottomLeft, L"╚", 0, 0, nullptr);
+        setcchar(&bottomRight, L"╝", 0, 0, nullptr);
+
+        // Draw the custom border
+        wborder_set(win, &vertical, &vertical, &horizontal, &horizontal,
+                    &topLeft, &topRight, &bottomLeft, &bottomRight);
     }
 };
 
@@ -86,7 +120,7 @@ public:
     {
         wattron(win, A_BOLD);
         wbkgd(win, COLOR_PAIR(20));
-        // box(win, 0, 0);
+        Custom_Border_1(win);
         mvwprintw(win, 1, 1, "Enter your name");
         wrefresh(win);
         wattroff(win, A_BOLD);
@@ -107,14 +141,6 @@ public:
 class Splix_Window : public Window
 {
 public:
-    void draw() override
-    {
-        wattron(win, A_BOLD);
-        // wborder(win, L'│', L'│', L'─', L'─', L'╭', L'╮', L'╰', L'╯');
-        box(win, 0, 0);
-        wrefresh(win);
-        wattroff(win, A_BOLD);
-    }
     Splix_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void create_initial_territory(int coordinate_y, int coordinate_x);
     void render_game(int coordinate_y, int coordinate_x);
@@ -152,7 +178,7 @@ public:
     {
         wattron(win, A_BOLD);
         wbkgd(win, COLOR_PAIR(20));
-        // box(win, 0, 0);
+        Custom_Border_1(win);
         mvwprintw(win, 1, 1, "Enter room id");
         wrefresh(win);
         wattroff(win, A_BOLD);
@@ -162,9 +188,10 @@ public:
 class Room_Window : public Window
 {
 public:
+    int selected_object = 0;
     Room_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void Render_room();
-    void inside_room();
+    void inside_room(std::vector<std::string> member_info, int room_id);
 };
 class Gameover_Window : public Window
 {

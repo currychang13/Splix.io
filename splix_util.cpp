@@ -26,10 +26,10 @@ void Initial_Window::Rendertitle()
 // Room_Window functions
 void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
 {
-    nodelay(win, TRUE); // Non-blocking input
+    nodelay(win, TRUE); 
     keypad(win, TRUE);
+    curs_set(0);        
 
-    // Get the dimensions of the window
     if (room_info.size() == 0)
     {
         mvwprintw(win, 13, (width - 16) / 2, "No room here...");
@@ -43,7 +43,7 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
     }
     mvwprintw(win, 2 * room_info.size() + 15, (width - 18) / 2, "Create a new room");
     mvwprintw(win, 2 * (room_info.size() + 1) + 15, (width - 16) / 2, "Return to lobby");
-    // quit message
+
     bool selected = false;
     selected_room = 0;
 
@@ -84,19 +84,17 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
 
         if (ch == KEY_UP)
         {
-            // Move selection up
             selected_room = (selected_room - 1 >= 0) ? selected_room - 1 : 0;
         }
         else if (ch == KEY_DOWN)
         {
-            // Move selection down
             selected_room = (selected_room + 1 <= (int)room_info.size() + 1) ? selected_room + 1 : room_info.size() + 1;
         }
         else if (ch == '\n')
         {
-            // Confirm selection
             selected = true;
         }
+
         // Highlight the newly selected room
         if (selected_room < room_info.size())
         {
@@ -117,7 +115,6 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
             mvwprintw(win, 2 * (room_info.size() + 1) + 15, (width - 16) / 2, "Return to lobby");
             wattroff(win, A_REVERSE);
         }
-        // Refresh the window to display changes
         wrefresh(win);
     }
 }
@@ -171,8 +168,9 @@ void Create_Room_Window::Render_create_room()
 // CR_Input_Window functions
 void CR_Input_Window::get_user_input()
 {
-    noecho(); // enable displaying input
+    noecho(); 
     keypad(win, TRUE);
+    curs_set(1);
     wmove(win, 1, 1);
     int ch, i = 0, cursor_position = 1;
     int warning = 0;
@@ -268,6 +266,102 @@ void CR_Input_Window::get_user_input()
     }
 }
 
+// Room_Window functions
+void Room_Window::Render_room()
+{
+    wattron(win, COLOR_PAIR(1) | A_BOLD);
+    int maxX = getmaxx(win);
+    setlocale(LC_ALL, "");
+    const wchar_t *title[] = {
+        L"██████╗ ███████╗ █████╗ ██████╗ ██╗   ██╗██████╗ ",
+        L"██╔══██╗██╔════╝██╔══██╗██╔══██╗╚██╗ ██╔╝╚════██╗",
+        L"██████╔╝█████╗  ███████║██║  ██║ ╚████╔╝   ▄███╔╝",
+        L"██╔══██╗██╔══╝  ██╔══██║██║  ██║  ╚██╔╝    ▀▀══╝ ",
+        L"██║  ██║███████╗██║  ██║██████╔╝   ██║     ██╗   ",
+        L"╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═════╝    ╚═╝     ╚═╝   ",
+    };
+    int artWidth = wcslen(title[0]);
+    int startX = (maxX - artWidth) / 2;
+    int artLines = sizeof(title) / sizeof(title[0]);
+    int startY = 3;
+    for (int i = 0; i < artLines; i++)
+        mvwaddwstr(win, startY + i, startX, title[i]);
+    wrefresh(win);
+    wattroff(win, COLOR_PAIR(1) | A_BOLD);
+};
+void Room_Window::inside_room(std::vector<std::string> member_info, int room_id)
+{
+    nodelay(win, TRUE); // Non-blocking input
+    keypad(win, TRUE);
+    curs_set(0); 
+    // Display the room ID
+    mvwprintw(win, 13, (width - 10) / 2, "Room ID: %d", room_id);
+
+    // Display the room members
+    for (int i = 0; i < (int)member_info.size(); i++)
+    {
+        std::string current_str = "Player " + std::to_string(i + 1) + ": " + member_info[i];
+        mvwprintw(win, 2 * i + 17, (width - current_str.length()) / 2, "%s", current_str.c_str());
+    }
+
+    // Display the option to Enter the game
+    mvwprintw(win, 2 * member_info.size() + 17, (width - 12) / 2, "Enter Game");
+    mvwprintw(win, 2 * (member_info.size() + 1) + 17, (width - 23) / 2, "Back to Room Selection");
+
+    // Highlight the initial selection
+    wattron(win, A_REVERSE);
+    std::string initial_str = "Enter Game";
+    mvwprintw(win, 2 * member_info.size() + 17, (width - 12) / 2, "%s", initial_str.c_str());
+    wattroff(win, A_REVERSE);
+    wrefresh(win);
+
+    // Select a room member to kick
+    selected_object = (int)member_info.size();
+    bool selected = false;
+
+    while (!selected)
+    {
+        int ch = wgetch(win);
+
+        // Remove highlighting from the currently selected member
+        if (selected_object == member_info.size())
+        {
+            mvwprintw(win, 2 * member_info.size() + 17, (width - 12) / 2, "Enter Game");
+        }
+        else
+        {
+            mvwprintw(win, 2 * (member_info.size() + 1) + 17, (width - 23) / 2, "Back to Room Selection");
+        }
+
+        if (ch == KEY_UP)
+        {
+            selected_object = (selected_object - 1 >= (int)member_info.size()) ? selected_object - 1 : (int)member_info.size();
+        }
+        else if (ch == KEY_DOWN)
+        {
+            selected_object = (selected_object + 1 <= (int)member_info.size() + 1) ? selected_object + 1 : member_info.size() + 1;
+        }
+        else if (ch == '\n')
+        {
+            selected = true;
+        }
+
+        // Highlight the newly selected member
+        if (selected_object == member_info.size())
+        {
+            wattron(win, A_REVERSE);
+            mvwprintw(win, 2 * member_info.size() + 17, (width - 12) / 2, "Enter Game");
+            wattroff(win, A_REVERSE);
+        }
+        else
+        {
+            wattron(win, A_REVERSE);
+            mvwprintw(win, 2 * (member_info.size() + 1) + 17, (width - 23) / 2, "Back to Room Selection");
+            wattroff(win, A_REVERSE);
+        }
+        wrefresh(win);
+    }
+}
 // Input_Window functions
 void Input_Window::get_user_input()
 {
@@ -741,6 +835,6 @@ void Gameover_Window::render_gameover()
     int startY = 3;
     for (int i = 0; i < artLines; i++)
         mvwaddwstr(win, startY + i, startX, title[i]);
-    wrefresh(win);
     wattroff(win, COLOR_PAIR(1) | A_BOLD);
+    wrefresh(win);
 }
