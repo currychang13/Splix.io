@@ -23,6 +23,7 @@
 #define HEIGHT_INIT_WIN 50
 #define WIDTH_INIT_WIN 100
 #define name_length 20
+#define id_length 4
 
 #define acc_time 50
 #define cool_time 50
@@ -32,6 +33,7 @@ enum GameStatus
 {
     INITIAL,
     ROOM_SELECTION,
+    INSIDE_ROOM,
     GAMING,
     GAME_OVER
 };
@@ -78,13 +80,13 @@ class Input_Window : public Window
 {
 public:
     char name[name_length] = "";
-    void get_user_input();
+    virtual void get_user_input();
     Input_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void draw() override
     {
         wattron(win, A_BOLD);
         wbkgd(win, COLOR_PAIR(20));
-        box(win, 0, 0);
+        // box(win, 0, 0);
         mvwprintw(win, 1, 1, "Enter your name");
         wrefresh(win);
         wattroff(win, A_BOLD);
@@ -123,15 +125,47 @@ public:
     int check_valid_position(int coordinate_y, int coordinate_x);
 };
 
-class Room_Window : public Window
+class Select_Room_Window : public Window
 {
 public:
     int selected_room = 0;
-    Room_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
-    void Renderroom();
+    Select_Room_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
+    void Render_select_room();
     void select_room(std::vector<std::pair<int, int>> room_info);
 };
 
+class Create_Room_Window : public Window
+{
+
+public:
+    Create_Room_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
+    void Render_create_room();
+};
+
+class CR_Input_Window : public Input_Window
+{
+public:
+    char id[id_length] = "";
+    CR_Input_Window(int height, int width, int starty, int startx) : Input_Window(height, width, starty, startx) {}
+    void get_user_input() override;
+    void draw() override
+    {
+        wattron(win, A_BOLD);
+        wbkgd(win, COLOR_PAIR(20));
+        // box(win, 0, 0);
+        mvwprintw(win, 1, 1, "Enter room id");
+        wrefresh(win);
+        wattroff(win, A_BOLD);
+    }
+};
+
+class Room_Window : public Window
+{
+public:
+    Room_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
+    void Render_room();
+    void inside_room();
+};
 class Gameover_Window : public Window
 {
 public:

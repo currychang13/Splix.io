@@ -125,6 +125,7 @@ int game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
         coordinate_y += direction.first;
         coordinate_x += direction.second;
+
         // check if die or not
         if (!game_win->check_valid_position(coordinate_y, coordinate_x))
             return 1;
@@ -174,7 +175,7 @@ int connect_to_server()
 }
 void send_server_name(int sockfd, const char *name)
 {
-    // Send name to server
+    //add some error handling
     write(sockfd, name, strlen(name));
 }
 std::vector<std::pair<int, int>> receive_room_info(int sockfd)
@@ -199,9 +200,8 @@ void send_server_room(int sockfd, int room_id)
     // Send room id to server
     char room_str[10];
     sprintf(room_str, "%d", room_id);
-    write(sockfd, (void *)room_str, strlen(room_str));
+    write(sockfd, room_str, strlen(room_str));
 }
-
 int main()
 {
     // signal(SIGWINCH, SIG_IGN); /* ignore window size changes */
@@ -213,7 +213,7 @@ int main()
     cbreak();             // disable line buffering, but allow signals(ctrl+c, ctrl+z, etc.)
     keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
     init_color(COLOR_GRAY, 500, 500, 500);
-    init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple (RGB: 80%, 40%, 90%)
+    //init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple (RGB: 80%, 40%, 90%)
     init_color(COLOR_TEAL, 200, 700, 700);     // Light Teal (RGB: 0%, 50%, 50%)
     init_color(COLOR_CORAL, 1000, 500, 400);   // Coral
     init_color(COLOR_DEEPGRAY, 300, 300, 300); // Dark Gray
@@ -232,6 +232,7 @@ int main()
     init_pair(10, COLOR_TEAL, -1);
 
     // preserved color
+    init_pair(18, COLOR_RED, COLOR_WHITE);
     init_pair(19, COLOR_GRAY, -1);
     init_pair(20, COLOR_BLACK, COLOR_WHITE);
     GameStatus status = GameStatus::INITIAL;
@@ -241,12 +242,15 @@ int main()
 #endif
     // windows
     Initial_Window init_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
+    Select_Room_Window select_room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
+    Create_Room_Window create_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
+    CR_Input_Window cr_input_win(HEIGHT_INIT_WIN / 13, WIDTH_INIT_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_INIT_WIN / 12) / 2.5, (COLS - WIDTH_INIT_WIN / 2) / 2);
     Room_Window room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-    Input_Window input_win(HEIGHT_INIT_WIN / 12, WIDTH_GAME_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 12) / 2.5, (COLS - WIDTH_GAME_WIN / 2) / 2);
+    Input_Window input_win(HEIGHT_INIT_WIN / 13, WIDTH_GAME_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 12) / 2.5, (COLS - WIDTH_GAME_WIN / 2) / 2);
     Status_Window stat_win(HEIGHT_GAME_WIN / 5, WIDTH_GAME_WIN / 4, (LINES - HEIGHT_GAME_WIN) / 2, (COLS + WIDTH_GAME_WIN) / 2);
     Splix_Window splix_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
     Gameover_Window gameover_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
-    
+
     while (true)
     {
 
@@ -270,28 +274,44 @@ int main()
             status = GameStatus::ROOM_SELECTION;
             break;
         case GameStatus::ROOM_SELECTION:
-            room_win.draw();
-            room_win.Renderroom();
-            room_win.select_room(room_info);
-            if (room_win.selected_room == room_info.size() + 1)
+            select_room_win.draw();
+            select_room_win.Render_select_room();
+            select_room_win.select_room(room_info);
+            // return to lobby
+            if (select_room_win.selected_room == room_info.size() + 1)
             {
                 status = GameStatus::INITIAL;
                 break;
             }
-#ifndef DEBUG
-            else if (room_win.selected_room == room_info.size())
+//#ifndef DEBUG
+            // create a new room
+            else if (select_room_win.selected_room == room_info.size())
             {
-                send_server_room(sockfd, 0); // create a new room
+                create_win.draw();
+                create_win.Render_create_room();
+                cr_input_win.draw();
+                cr_input_win.get_user_input();
+                //send_server_name(sockfd, cr_input_win.name); // send name to server, if room exist, join
             }
-            send_server_room(sockfd, room_info[room_win.selected_room].first);
-#endif
+            // join a room
+            else
+            {
+                //send_server_room(sockfd, room_info[room_win.selected_room].first);
+            }
+//#endif
+            status = GameStatus::INSIDE_ROOM;
+            break;
+        case GameStatus::INSIDE_ROOM:
+            // inside room
+            // room_win.draw();
+            // room_win.Render_room();
+            // room_win.inside_room();
             status = GameStatus::GAMING;
             break;
         case GameStatus::GAMING:
             noecho(); // disable displaying input
             if (game_loop(&splix_win, &stat_win))
-            {
-                // die
+            { // die
                 status = GameStatus::GAME_OVER;
             }
             else
