@@ -42,7 +42,7 @@ enum Mode
 };
 
 // id allocate by server
-const int id = 1;
+extern int id;
 extern int map[MAP_HEIGHT][MAP_WIDTH];
 extern Mode mode;
 // classes
@@ -127,7 +127,6 @@ class Room_Window : public Window
 {
 public:
     int selected_room = 0;
-    bool quit = false;
     Room_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void Renderroom();
     void select_room(std::vector<std::pair<int, int>> room_info);

@@ -1,8 +1,14 @@
 #include "splix_header.h"
+
 #define COLOR_GRAY 8
+#define COLOR_PURPLE 9
+#define COLOR_TEAL 10
+
 int map[MAP_HEIGHT][MAP_WIDTH];
 Mode mode = Mode::NORMAL;
-void game_loop(Splix_Window *game_win, Status_Window *stat_win)
+int id = rand() % 10 + 1;
+
+int game_loop(Splix_Window *game_win, Status_Window *stat_win)
 {
     // Disable the cursor
     curs_set(0);
@@ -52,7 +58,7 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
             case 'q':
                 wattroff(game_win->win, COLOR_PAIR(1) | A_BOLD);
                 game_win->exit_game(1);
-                return; // exit the function
+                return 0; // exit the function
             case 'w':
             case KEY_UP:
                 new_direction = {-1, 0};
@@ -118,7 +124,8 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
         coordinate_x += direction.second;
         // check if die or not
         if (!game_win->check_valid_position(coordinate_y, coordinate_x))
-            return;
+            return 1;
+
         // check the territory
         if (map[coordinate_y][coordinate_x] == -id)
         {
@@ -202,11 +209,22 @@ int main()
     cbreak();             // disable line buffering, but allow signals(ctrl+c, ctrl+z, etc.)
     keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
     init_color(COLOR_GRAY, 500, 500, 500);
+    init_color(COLOR_PURPLE, 800, 400, 900); // Light Purple (RGB: 80%, 40%, 90%)
+    init_color(COLOR_TEAL, 200, 700, 700);   // Light Teal (RGB: 0%, 50%, 50%)
     init_pair(1, COLOR_RED, -1);
     init_pair(2, COLOR_YELLOW, -1);
     init_pair(3, COLOR_WHITE, -1);
     init_pair(4, COLOR_BLUE, -1);
-    init_pair(5, COLOR_GRAY, -1);
+    init_pair(5, COLOR_RED, -1);
+    init_pair(6, COLOR_MAGENTA, -1);
+    init_pair(7, COLOR_GREEN, -1);
+    init_pair(8, COLOR_CYAN, -1);
+    init_pair(9, COLOR_BLACK, -1);
+    init_pair(10, COLOR_TEAL, -1);
+    init_pair(11, COLOR_PURPLE, COLOR_BLACK);
+
+    // preserved color
+    init_pair(19, COLOR_GRAY, -1);
     init_pair(20, COLOR_BLACK, COLOR_WHITE);
     GameStatus status = GameStatus::INITIAL;
     // windows
@@ -242,26 +260,44 @@ int main()
             room_win.draw();
             room_win.Renderroom();
             room_win.select_room(room_info);
-            if (room_win.quit)
+            if (room_win.selected_room == room_info.size() + 1)
             {
                 status = GameStatus::INITIAL;
                 break;
             }
-            // uncomment this line to test server
+
+            // uncomment these line to test server
+            // else if (room_win.selected_room == room_info.size())
+            // {
+            //     send_server_room(sockfd, 0);// create a new room
+            // }
             // send_server_room(sockfd, room_info[room_win.selected_room].first);
             status = GameStatus::GAMING;
             break;
         case GameStatus::GAMING:
             noecho(); // disable displaying input
-            game_loop(&splix_win, &stat_win);
+            if (game_loop(&splix_win, &stat_win))
+            {
+                // die
+                status = GameStatus::GAME_OVER;
+            }
+            else
+            {
+                status = GameStatus::INITIAL;
+            };
+            werase(splix_win.win);
+            wrefresh(splix_win.win);
+            werase(stat_win.win);
+            wrefresh(stat_win.win);
             echo(); // enable displaying input
-            status = GameStatus::GAME_OVER;
             break;
         case GameStatus::GAME_OVER:
             // show game over
             curs_set(0);
             gameover_win.render_gameover();
             sleep(3);
+            werase(gameover_win.win);
+            wrefresh(gameover_win.win);
             status = GameStatus::INITIAL;
             break;
         }

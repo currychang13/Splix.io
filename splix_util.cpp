@@ -30,35 +30,57 @@ void Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
     keypad(win, TRUE);
 
     // Get the dimensions of the window
-    int win_height, win_width;
-    getmaxyx(win, win_height, win_width);
-
-    // Display all room options
-    for (int i = 0; i < (int)room_info.size(); i++)
+    if (room_info.size() == 0)
     {
-        std::string room_str = "Room " + std::to_string(room_info[i].first) + ": " + std::to_string(room_info[i].second) + " players";
-        mvwprintw(win, 2 * i + 15, (win_width - room_str.length()) / 2, "%s", room_str.c_str());
+        mvwprintw(win, 13, (width - 16) / 2, "No room here...");
     }
 
+    // Display all room options and the option to create a new room
+    for (int i = 0; i < (int)room_info.size(); i++)
+    {
+        std::string room_str = "Room " + std::to_string(room_info[i].first) + ": " + std::to_string(room_info[i].second) + " players in the room";
+        mvwprintw(win, 2 * i + 15, (width - room_str.length()) / 2, "%s", room_str.c_str());
+    }
+    mvwprintw(win, 2 * room_info.size() + 15, (width - 18) / 2, "Create a new room");
+    mvwprintw(win, 2 * (room_info.size() + 1) + 15, (width - 16) / 2, "Return to lobby");
+    // quit message
     bool selected = false;
     selected_room = 0;
 
     // Highlight the initial selection
-    wattron(win, A_REVERSE);
-    std::string initial_str = "Room " + std::to_string(room_info[0].first) + ": " + std::to_string(room_info[0].second) + " players";
-    mvwprintw(win, 15, (win_width - initial_str.length()) / 2, "%s", initial_str.c_str());
-    wattroff(win, A_REVERSE);
-    wrefresh(win);
-
-    // quit message
-    mvwprintw(win, win_height - 2, (win_width - 25) / 2, "Press 'q' to return lobby");
+    if (room_info.size() > 0)
+    {
+        wattron(win, A_REVERSE);
+        std::string initial_str = "Room " + std::to_string(room_info[0].first) + ": " + std::to_string(room_info[0].second) + " players in the room";
+        mvwprintw(win, 15, (width - initial_str.length()) / 2, "%s", initial_str.c_str());
+        wattroff(win, A_REVERSE);
+        wrefresh(win);
+    }
+    else
+    {
+        wattron(win, A_REVERSE);
+        mvwprintw(win, 15, (width - 16) / 2, "Create a new room");
+        wattroff(win, A_REVERSE);
+        wrefresh(win);
+    }
     while (!selected)
     {
         int ch = wgetch(win);
 
         // Remove highlighting from the currently selected room
-        std::string current_str = "Room " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players";
-        mvwprintw(win, 2 * selected_room + 15, (win_width - current_str.length()) / 2, "%s", current_str.c_str());
+        if (selected_room < room_info.size())
+        {
+            std::string current_str = "Room " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players in the room";
+            mvwprintw(win, 2 * selected_room + 15, (width - current_str.length()) / 2, "%s", current_str.c_str());
+        }
+        else if (selected_room == room_info.size())
+        {
+            mvwprintw(win, 2 * room_info.size() + 15, (width - 18) / 2, "Create a new room");
+        }
+        else
+        {
+            mvwprintw(win, 2 * (room_info.size() + 1) + 15, (width - 16) / 2, "Return to lobby");
+        }
 
         if (ch == KEY_UP)
         {
@@ -68,26 +90,33 @@ void Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
         else if (ch == KEY_DOWN)
         {
             // Move selection down
-            selected_room = (selected_room + 1 < (int)room_info.size()) ? selected_room + 1 : room_info.size() - 1;
+            selected_room = (selected_room + 1 <= (int)room_info.size() + 1) ? selected_room + 1 : room_info.size() - 1;
         }
         else if (ch == '\n')
         {
             // Confirm selection
             selected = true;
         }
-        else if (ch == 'q')
-        {
-            // Quit
-            quit = true;
-            break;
-        }
-
         // Highlight the newly selected room
-        wattron(win, A_REVERSE);
-        std::string new_str = "Room " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players";
-        mvwprintw(win, 2 * selected_room + 15, (win_width - new_str.length()) / 2, "%s", new_str.c_str());
-        wattroff(win, A_REVERSE);
-
+        if (selected_room < room_info.size())
+        {
+            wattron(win, A_REVERSE);
+            std::string new_str = "Room " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players in the room";
+            mvwprintw(win, 2 * selected_room + 15, (width - new_str.length()) / 2, "%s", new_str.c_str());
+            wattroff(win, A_REVERSE);
+        }
+        else if (selected_room == room_info.size())
+        {
+            wattron(win, A_REVERSE);
+            mvwprintw(win, 2 * room_info.size() + 15, (width - 18) / 2, "Create a new room");
+            wattroff(win, A_REVERSE);
+        }
+        else
+        {
+            wattron(win, A_REVERSE);
+            mvwprintw(win, 2 * (room_info.size() + 1) + 15, (width - 16) / 2, "Return to lobby");
+            wattroff(win, A_REVERSE);
+        }
         // Refresh the window to display changes
         wrefresh(win);
     }
@@ -248,27 +277,28 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
             // Determine the character to render based on map values
             ;
             const wchar_t *symbol;
-            switch (map[map_y][map_x])
+            if (map[map_y][map_x] == 0)
             {
-            case 0:
-                symbol = L".";               // Empty space
-                wattron(win, COLOR_PAIR(5)); // gray
-                break;
-            case -id:
+                symbol = L".";                // Empty space
+                wattron(win, COLOR_PAIR(19)); // Gray
+            }
+            else if (map[map_y][map_x] == -id)
+            {
                 symbol = L"■"; // Filled territory
                 wattron(win, COLOR_PAIR(id));
-                break;
-            case id:
+            }
+            else if (map[map_y][map_x] == id)
+            {
                 if (mode == Mode::FAST)
-                    symbol = L"★"; // Player trail
+                    symbol = L"★"; // Player trail in FAST mode
                 else
-                    symbol = L"▪"; // Player trail
+                    symbol = L"▪"; // Player trail in NORMAL mode
                 wattron(win, COLOR_PAIR(id));
-                break;
-            default:
+            }
+            else
+            {
                 symbol = L"?"; // Undefined
                 wattron(win, COLOR_PAIR(3));
-                break;
             }
 
             // Render the character or cell
