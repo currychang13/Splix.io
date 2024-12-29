@@ -26,6 +26,7 @@
 
 #define acc_time 50
 #define cool_time 50
+#define speed 170000
 
 enum GameStatus
 {
@@ -38,7 +39,6 @@ enum Mode
 {
     NORMAL,
     FAST,
-    PAUSE
 };
 
 // id allocate by server

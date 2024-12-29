@@ -37,13 +37,15 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
     // gaming
     int ch; // use int to store the character like key_up, key_down, etc.
     mode = Mode::NORMAL;
-    useconds_t frame_time = 200000; // 0.2 sec
+    useconds_t frame_time = speed; // 0.15 sec
     int acceleration_timer = acc_time;
     int cooldown_timer = 0;
     for (;;)
     {
+
         if ((ch = wgetch(game_win->win)) != ERR)
         {
+            flushinp(); // clear the input buffer
             std::pair<int, int> new_direction = direction;
             switch (ch)
             {
@@ -67,27 +69,16 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
             case KEY_RIGHT:
                 new_direction = {0, 1};
                 break;
-            case 'p':
-                if (mode == Mode::PAUSE)
-                {
-                    mode = Mode::NORMAL; // Resume game
-                    frame_time = 200000; // Reset to NORMAL speed
-                }
-                else
-                {
-                    mode = Mode::PAUSE; // PAUSE game
-                }
-                break;
             case 'f':
                 if (mode == Mode::FAST)
                 {
                     mode = Mode::NORMAL; // Resume game
-                    frame_time = 200000; // Reset to NORMAL speed
+                    frame_time = speed;  // Reset to NORMAL speed
                 }
-                else if (mode != Mode::PAUSE && cooldown_timer == 0)
+                else if (cooldown_timer == 0)
                 {
-                    mode = Mode::FAST;  // FAST mode
-                    frame_time = 50000; // FASTer speed: 0.05 seconds
+                    mode = Mode::FAST;      // FAST mode
+                    frame_time = speed / 3; // FASTer speed: 0.05 seconds
                     acceleration_timer = acc_time;
                 }
                 break;
@@ -99,16 +90,6 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 direction = new_direction;
             }
         }
-
-        if (mode == Mode::PAUSE)
-        {
-            game_win->render_game(coordinate_y, coordinate_x);
-            stat_win->update_status(coordinate_y, coordinate_x, mode == Mode::FAST ? "FAST" : mode == Mode::PAUSE ? "PAUSE"
-                                                                                                                  : "NORMAL");
-            stat_win->update_timer(acceleration_timer, cooldown_timer);
-            usleep(100000);
-            continue;
-        }
         // Handle acceleration timer
         if (mode == Mode::FAST && acceleration_timer > 0)
         {
@@ -116,7 +97,7 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
             if (acceleration_timer == 0)
             {
                 mode = Mode::NORMAL;
-                frame_time = 200000;
+                frame_time = speed;
                 cooldown_timer = cool_time;
             }
         }
@@ -156,8 +137,7 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
             map[coordinate_y][coordinate_x] = id;
         }
         game_win->render_game(coordinate_y, coordinate_x);
-        stat_win->update_status(coordinate_y, coordinate_x, mode == Mode::FAST ? "Burst" : mode == Mode::PAUSE ? "PAUSE"
-                                                                                                               : "NORMAL");
+        stat_win->update_status(coordinate_y, coordinate_x, mode == Mode::FAST ? "Burst" : "NORMAL");
         stat_win->update_timer(acceleration_timer, cooldown_timer);
         usleep(frame_time); // Sleep for 0.1sec, speed of the game
     }
