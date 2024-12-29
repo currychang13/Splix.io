@@ -154,7 +154,7 @@ int connect_to_server()
     // Initialize server address
     bzero(&servaddr, sizeof(servaddr));                       // Clear struct
     servaddr.sin_family = AF_INET;                            // IPv4
-    servaddr.sin_port = htonl(12345);                         // Server port (convert to network byte order)
+    servaddr.sin_port = htons(12345);                         // Server port (convert to network byte order)
     inet_pton(AF_INET, "140.113.66.205", &servaddr.sin_addr); // Convert IP address to binary form
 
     // Connect to server
