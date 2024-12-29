@@ -1,3 +1,4 @@
+#include "splix_header.h"
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netinet/in.h>
@@ -21,6 +22,8 @@
 // Forward declarations
 class Server;
 
+// Forward declaration of GameManager
+class GameManager;
 // Define client states
 enum class ClientState
 {
@@ -28,6 +31,18 @@ enum class ClientState
     ROOM_SELECTION,
     WAITING_START,
     PLAYING_GAME
+};
+
+struct GameLoopArgs
+{
+    int roomId;
+    GameManager *gameManager;
+};
+
+struct PlayerArgs
+{
+    Server *server;
+    int clientFd;
 };
 
 // Client Information Structure
@@ -114,12 +129,36 @@ private:
     std::map<int, GameState> gameStates; // roomId -> GameState
 
     void initializeGameState(int roomId);
+    void addPlayerToGame(int roomId, int clientFd);
     void updateAllPlayers(int roomId);
     void checkPlayerDeaths(int roomId);
     void broadcastGameState(int roomId);
     bool isGameActive(int roomId);
     void endGame(int roomId);
 };
+
+void GameManager::addPlayerToGame(int roomId, int clientFd)
+{
+    pthread_mutex_lock(&server.getGameMutex());
+
+    auto &gameState = gameStates[roomId];
+    Player player;
+    player.fd = clientFd;
+    player.x = rand() % MAP_WIDTH;
+    player.y = rand() % MAP_HEIGHT;
+    player.direction = {0, 1}; // Default direction
+    player.isAlive = true;
+
+    // Add player to game state
+    gameState.players[clientFd] = player;
+    gameState.map[player.y][player.x] = server.getClients().at(clientFd).id;
+
+    // Notify the client of their initial position
+    std::string initMsg = "INIT " + std::to_string(player.x) + " " + std::to_string(player.y) + "\n";
+    write(clientFd, initMsg.c_str(), initMsg.length());
+
+    pthread_mutex_unlock(&server.getGameMutex());
+}
 
 // Server Class
 class Server
@@ -133,6 +172,7 @@ public:
     // Accessors for GameManager and RoomManager
     RoomManager &getRoomManager() { return roomManager; }
     GameManager &getGameManager() { return gameManager; }
+    pthread_mutex_t &getGameMutex() { return gameMutex; }
 
     const std::map<int, ClientInfo> &getClients() const
     {
@@ -145,6 +185,7 @@ private:
     fd_set allset;
     RoomManager roomManager;
     GameManager gameManager;
+    pthread_mutex_t gameMutex;
     int nextUserId;
     std::map<int, ClientInfo> clients; // Map to store client info keyed by file descriptor
 
@@ -169,7 +210,9 @@ void RoomManager::sendRoomInfo(int clientFd, Server &server)
     {
         perror("write error in sendRoomInfo");
     }
-
+    char buf[MAXLINE];
+    read(clientFd, buf, MAXLINE);
+    std::cout << buf << "\n";
     std::stringstream ss;
     // 2. Send each room's ID and the number of users in the room
     for (const auto &[roomId, room] : rooms)
@@ -187,14 +230,21 @@ void RoomManager::sendRoomInfo(int clientFd, Server &server)
     }
 }
 
+// FILE: server.cpp
+
 bool RoomManager::joinRoom(int roomId, int clientFd, Server &server)
 {
     auto it = rooms.find(roomId);
     if (it != rooms.end())
     {
-        // Add client to the room
+        // Room exists. Add client to the room.
         it->second.clients.push_back(clientFd);
-        std::cout << "Client FD " << clientFd << " joined room " << roomId << std::endl;
+        std::cout << "Client FD " << clientFd << " joined existing room " << roomId << std::endl;
+
+        if (server.getGameManager().isGameActive(roomId))
+        {
+            server.getGameManager().addPlayerToGame(roomId, clientFd);
+        }
 
         // Prepare the list of other users' usernames
         std::stringstream ss;
@@ -207,25 +257,54 @@ bool RoomManager::joinRoom(int roomId, int clientFd, Server &server)
                 if (clientIt != clientsMap.end())
                 {
                     ss << clientIt->second.username << "\n";
+                    std::string userList = ss.str();
+
+                    // Send the usernames to the joining client
+                    ssize_t bytesSent = write(clientFd, userList.c_str(), userList.length());
+                    if (bytesSent < 0)
+                    {
+                        perror("write error in joinRoom");
+                        return false;
+                    }
                 }
             }
         }
 
-        std::string userList = ss.str();
+        return true;
+    }
+    else
+    {
+        // Room does not exist. Create a new room with the specified roomId.
+        Room newRoom;
+        newRoom.roomId = roomId;
+        newRoom.roomName = "Room_" + std::to_string(roomId); // You can customize the naming convention
+        newRoom.clients.push_back(clientFd);
+        rooms[roomId] = newRoom;
+        std::cout << "Client FD " << clientFd << " created and joined new room " << roomId << std::endl;
 
-        // Send the usernames to the joining client
-        ssize_t bytesSent = write(clientFd, userList.c_str(), userList.length());
+        // Notify the client that a new room has been created and joined
+        std::string ack = "none";
+        ssize_t bytesSent = write(clientFd, ack.c_str(), ack.length());
         if (bytesSent < 0)
         {
-            perror("write error in joinRoom");
+            perror("write error in joinRoom (new room creation)");
             return false;
         }
 
         return true;
     }
+}
 
-    std::cout << "Room ID " << roomId << " does not exist." << std::endl;
-    return false;
+static void *gameLoopWrapper(void *arg)
+{
+    GameLoopArgs *args = static_cast<GameLoopArgs *>(arg);
+    int roomId = args->roomId;
+    GameManager *gm = args->gameManager;
+    delete args; // Prevent memory leak
+
+    gm->gameLoop(roomId);
+
+    return nullptr;
 }
 
 // Implementation of GameManager Methods
@@ -241,18 +320,14 @@ void GameManager::startGame(int roomId)
 
     // Create a new thread for the game loop
     pthread_t thread;
-    int *roomIdPtr = new int(roomId);
-    if (pthread_create(&thread, nullptr, [](void *arg) -> void *
-                       {
-        int roomId = *static_cast<int*>(arg);
-        delete static_cast<int*>(arg);
-        GameManager* gm = nullptr; // Retrieve GameManager instance if needed
-        // Assuming gm is accessible
-        // gm->gameLoop(roomId);
-        return nullptr; }, roomIdPtr) != 0)
+    GameLoopArgs *args = new GameLoopArgs();
+    args->roomId = roomId;
+    args->gameManager = this;
+
+    if (pthread_create(&thread, nullptr, gameLoopWrapper, args) != 0)
     {
         std::cerr << "Failed to create game thread for room " << roomId << std::endl;
-        delete roomIdPtr;
+        delete args;
         return;
     }
 
@@ -270,9 +345,9 @@ void GameManager::initializeGameState(int roomId)
     gameState.roomId = roomId;
 
     // Initialize the 600x600 map to 0
-    for (int i = 0; i < 600; ++i)
+    for (int i = 0; i < MAP_WIDTH; ++i)
     {
-        for (int j = 0; j < 600; ++j)
+        for (int j = 0; j < MAP_HEIGHT; ++j)
         {
             gameState.map[i][j] = 0;
         }
@@ -287,8 +362,8 @@ void GameManager::initializeGameState(int roomId)
     {
         Player player;
         player.fd = fd;
-        player.x = rand() % 600;
-        player.y = rand() % 600;
+        player.x = rand() % MAP_WIDTH;
+        player.y = rand() % MAP_HEIGHT;
         // Assign a random direction: up, down, left, right
         int dir = rand() % 4;
         switch (dir)
@@ -343,16 +418,20 @@ void GameManager::gameLoop(int roomId)
 {
     while (isGameActive(roomId))
     {
-        sleep(1); // Simulate game ticks
+        pthread_mutex_lock(&server.getGameMutex());
 
-        // Update game state logic here
+        // Update game state
         updateAllPlayers(roomId);
 
-        // Check for player deaths and update the map
+        // Check for player deaths
         checkPlayerDeaths(roomId);
 
-        // Broadcast updated game state to all clients
+        // Broadcast game state to all clients
         broadcastGameState(roomId);
+
+        pthread_mutex_unlock(&server.getGameMutex());
+
+        sleep(1); // Simulate game ticks
     }
 
     endGame(roomId);
@@ -370,7 +449,7 @@ void GameManager::updateAllPlayers(int roomId)
             int newY = player.y + player.direction.first;
 
             // Boundary checks
-            if (newX < 0 || newX >= 600 || newY < 0 || newY >= 600)
+            if (newX < 0 || newX >= MAP_WIDTH || newY < 0 || newY >= MAP_HEIGHT)
             {
                 player.isAlive = false;
                 gameState.map[player.y][player.x] = 0;
@@ -379,7 +458,7 @@ void GameManager::updateAllPlayers(int roomId)
 
             const auto &clientsMap = server.getClients(); // Using the getter
             auto clientIt = clientsMap.find(fd);
-            
+
             // Update map
             gameState.map[player.y][player.x] = 0; // Clear old position
             player.x = newX;
@@ -667,12 +746,12 @@ void Server::handleUsername(int clientFd, const std::string &username)
 // Handle room selection
 void Server::handleRoomSelection(int clientFd, const std::string &roomIdStr)
 {
-    if (!std::all_of(roomIdStr.begin(), roomIdStr.end(), ::isdigit))
-    {
-        std::string error = "Invalid Room ID. Please enter a numeric Room ID:\n";
-        write(clientFd, error.c_str(), error.length());
-        return;
-    }
+    // if (!std::all_of(roomIdStr.begin(), roomIdStr.end(), ::isdigit))
+    // {
+    //     std::string error = "Invalid Room ID. Please enter a numeric Room ID:\n";
+    //     write(clientFd, error.c_str(), error.length());
+    //     return;
+    // }
 
     int selectedRoomId = std::stoi(roomIdStr);
     bool joined = roomManager.joinRoom(selectedRoomId, clientFd, *this);
@@ -680,14 +759,6 @@ void Server::handleRoomSelection(int clientFd, const std::string &roomIdStr)
     {
         // Update client's state
         clients[clientFd].state = ClientState::WAITING_START;
-
-        std::string ack = "Joined Room " + std::to_string(selectedRoomId) + "\n";
-        write(clientFd, ack.c_str(), ack.length());
-    }
-    else
-    {
-        std::string error = "Failed to join Room " + roomIdStr + ". Please enter a valid Room ID:\n";
-        write(clientFd, error.c_str(), error.length());
     }
 }
 
@@ -709,6 +780,7 @@ void Server::handleStartCommand(int clientFd, const std::string &message)
         return;
     }
 
+    // Start the game in GameManager
     gameManager.startGame(roomId);
 
     // Update client's state
