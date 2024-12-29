@@ -83,8 +83,8 @@ public:
     void draw() override
     {
         wattron(win, A_BOLD);
-        box(win, 0, 0);
         wbkgd(win, COLOR_PAIR(20));
+        box(win, 0, 0);
         mvwprintw(win, 1, 1, "Enter your name");
         wrefresh(win);
         wattroff(win, A_BOLD);
@@ -108,7 +108,7 @@ public:
     void draw() override
     {
         wattron(win, A_BOLD);
-        //wborder(win, L'│', L'│', L'─', L'─', L'╭', L'╮', L'╰', L'╯');
+        // wborder(win, L'│', L'│', L'─', L'─', L'╭', L'╮', L'╰', L'╯');
         box(win, 0, 0);
         wrefresh(win);
         wattroff(win, A_BOLD);

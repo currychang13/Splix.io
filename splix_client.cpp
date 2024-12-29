@@ -1,12 +1,17 @@
 #include "splix_header.h"
 
-#define COLOR_GRAY 8
-#define COLOR_PURPLE 9
-#define COLOR_TEAL 10
+#define DEBUG
+
+// colors
+#define COLOR_CORAL 15
+#define COLOR_PURPLE 16
+#define COLOR_TEAL 17
+#define COLOR_DEEPGRAY 18
+#define COLOR_GRAY 19
 
 int map[MAP_HEIGHT][MAP_WIDTH];
 Mode mode = Mode::NORMAL;
-int id = rand() % 10 + 1;
+int id = rand() % 11;
 
 int game_loop(Splix_Window *game_win, Status_Window *stat_win)
 {
@@ -16,8 +21,6 @@ int game_loop(Splix_Window *game_win, Status_Window *stat_win)
     nodelay(game_win->win, TRUE); // Non-blocking input
     game_win->draw();
     stat_win->draw();
-
-    wattron(game_win->win, COLOR_PAIR(1) | A_BOLD);
     // get map from server
     for (int i = 0; i < MAP_HEIGHT; i++)
     {
@@ -202,6 +205,7 @@ void send_server_room(int sockfd, int room_id)
 int main()
 {
     // signal(SIGWINCH, SIG_IGN); /* ignore window size changes */
+
     setlocale(LC_ALL, "");
     initscr();
     start_color();
@@ -209,41 +213,49 @@ int main()
     cbreak();             // disable line buffering, but allow signals(ctrl+c, ctrl+z, etc.)
     keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
     init_color(COLOR_GRAY, 500, 500, 500);
-    init_color(COLOR_PURPLE, 800, 400, 900); // Light Purple (RGB: 80%, 40%, 90%)
-    init_color(COLOR_TEAL, 200, 700, 700);   // Light Teal (RGB: 0%, 50%, 50%)
+    init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple (RGB: 80%, 40%, 90%)
+    init_color(COLOR_TEAL, 200, 700, 700);     // Light Teal (RGB: 0%, 50%, 50%)
+    init_color(COLOR_CORAL, 1000, 500, 400);   // Coral
+    init_color(COLOR_DEEPGRAY, 300, 300, 300); // Dark Gray
+
+    init_pair(0, COLOR_BLACK, -1);
     init_pair(1, COLOR_RED, -1);
-    init_pair(2, COLOR_YELLOW, -1);
-    init_pair(3, COLOR_WHITE, -1);
+    init_pair(2, COLOR_GREEN, -1);
+    init_pair(3, COLOR_YELLOW, -1);
     init_pair(4, COLOR_BLUE, -1);
-    init_pair(5, COLOR_RED, -1);
-    init_pair(6, COLOR_MAGENTA, -1);
-    init_pair(7, COLOR_GREEN, -1);
-    init_pair(8, COLOR_CYAN, -1);
-    init_pair(9, COLOR_BLACK, -1);
+    init_pair(5, COLOR_MAGENTA, -1);
+    init_pair(6, COLOR_CYAN, -1);
+    init_pair(7, COLOR_WHITE, -1);
+    // custom colors
+    init_pair(8, COLOR_CORAL, -1);
+    init_pair(9, COLOR_PURPLE, -1);
     init_pair(10, COLOR_TEAL, -1);
-    init_pair(11, COLOR_PURPLE, COLOR_BLACK);
 
     // preserved color
     init_pair(19, COLOR_GRAY, -1);
     init_pair(20, COLOR_BLACK, COLOR_WHITE);
     GameStatus status = GameStatus::INITIAL;
+
+#ifndef DEBUG
+    int sockfd = connect_to_server();
+#endif
     // windows
+    Initial_Window init_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
+    Room_Window room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
+    Input_Window input_win(HEIGHT_INIT_WIN / 12, WIDTH_GAME_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 12) / 2.5, (COLS - WIDTH_GAME_WIN / 2) / 2);
+    Status_Window stat_win(HEIGHT_GAME_WIN / 5, WIDTH_GAME_WIN / 4, (LINES - HEIGHT_GAME_WIN) / 2, (COLS + WIDTH_GAME_WIN) / 2);
+    Splix_Window splix_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
+    Gameover_Window gameover_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
+    
     while (true)
     {
-        Initial_Window init_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-        Room_Window room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-        Input_Window input_win(HEIGHT_INIT_WIN / 12, WIDTH_GAME_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 12) / 2.5, (COLS - WIDTH_GAME_WIN / 2) / 2);
-        Status_Window stat_win(HEIGHT_GAME_WIN / 5, WIDTH_GAME_WIN / 4, (LINES - HEIGHT_GAME_WIN) / 2, (COLS + WIDTH_GAME_WIN) / 2);
-        Splix_Window splix_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
-        Gameover_Window gameover_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
 
-        // uncomment these two lines to test server
-        //  int sockfd = connect_to_server();
         std::vector<std::pair<int, int>> room_info;
 
-        // comment these two lines to test server
+#ifdef DEBUG
         room_info.push_back({1, 2});
         room_info.push_back({2, 3});
+#endif
         switch (status)
         {
         case GameStatus::INITIAL:
@@ -251,9 +263,10 @@ int main()
             init_win.Rendertitle();
             input_win.draw();
             input_win.get_user_input();
-            // uncomment these two lines to test server
-            // send_server_name(sockfd, input_win.name);
-            // room_info = receive_room_info(sockfd);
+#ifndef DEBUG
+            send_server_name(sockfd, input_win.name);
+            room_info = receive_room_info(sockfd);
+#endif
             status = GameStatus::ROOM_SELECTION;
             break;
         case GameStatus::ROOM_SELECTION:
@@ -265,13 +278,13 @@ int main()
                 status = GameStatus::INITIAL;
                 break;
             }
-
-            // uncomment these line to test server
-            // else if (room_win.selected_room == room_info.size())
-            // {
-            //     send_server_room(sockfd, 0);// create a new room
-            // }
-            // send_server_room(sockfd, room_info[room_win.selected_room].first);
+#ifndef DEBUG
+            else if (room_win.selected_room == room_info.size())
+            {
+                send_server_room(sockfd, 0); // create a new room
+            }
+            send_server_room(sockfd, room_info[room_win.selected_room].first);
+#endif
             status = GameStatus::GAMING;
             break;
         case GameStatus::GAMING:

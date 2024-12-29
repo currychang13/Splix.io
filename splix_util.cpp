@@ -257,7 +257,9 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
         wattron(win, A_BLINK); // Red for edge proximity
         box(win, 0, 0);
         wattroff(win, A_BLINK); // Turn off border color
+        wrefresh(win);
     }
+
     // Draw the border
 
     // Clear the window and redraw the border
@@ -563,7 +565,7 @@ void Status_Window::update_timer(int acceleration_timer, int cooldown_timer)
 
     if (acceleration_timer > 0)
     {
-        wattron(win, COLOR_PAIR(2) | A_BOLD);
+        wattron(win, COLOR_PAIR(3) | A_BOLD);
         mvwprintw(win, 6, (width - 10) / 2, "<Boosting>");
         filled_blocks = (acceleration_timer * bar_length) / acc_time;
     }
@@ -589,7 +591,7 @@ void Status_Window::update_timer(int acceleration_timer, int cooldown_timer)
     }
 
     mvwprintw(win, 7, width - 2, "]");
-    wattroff(win, COLOR_PAIR(2) | A_BOLD);
+    wattroff(win, COLOR_PAIR(3) | A_BOLD);
 
     wrefresh(win);
 }
