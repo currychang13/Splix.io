@@ -1,30 +1,17 @@
 #include "splix_header.h"
-
+#define COLOR_GRAY 8
 int map[MAP_HEIGHT][MAP_WIDTH];
-enum class GameStatus
-{
-    INITIAL,
-    ROOM_SELECTION,
-    GAMING,
-    GAME_OVER
-};
-
-enum class Mode
-{
-    normal,
-    pause,
-    fast
-};
-
+Mode mode = Mode::NORMAL;
 void game_loop(Splix_Window *game_win, Status_Window *stat_win)
 {
     // Disable the cursor
     curs_set(0);
     keypad(game_win->win, TRUE);
     nodelay(game_win->win, TRUE); // Non-blocking input
-    wattron(game_win->win, COLOR_PAIR(1) | A_BOLD);
     game_win->draw();
     stat_win->draw();
+
+    wattron(game_win->win, COLOR_PAIR(1) | A_BOLD);
     // get map from server
     for (int i = 0; i < MAP_HEIGHT; i++)
     {
@@ -45,11 +32,11 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
     // create initial territory
     game_win->create_initial_territory(coordinate_y, coordinate_x);
     game_win->render_game(coordinate_y, coordinate_x);
-    stat_win->update_status(coordinate_y, coordinate_x, "Normal");
+    stat_win->update_status(coordinate_y, coordinate_x, "NORMAL");
 
     // gaming
     int ch; // use int to store the character like key_up, key_down, etc.
-    Mode mode = Mode::normal;
+    mode = Mode::NORMAL;
     useconds_t frame_time = 200000; // 0.2 sec
     int acceleration_timer = acc_time;
     int cooldown_timer = 0;
@@ -81,26 +68,26 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 new_direction = {0, 1};
                 break;
             case 'p':
-                if (mode == Mode::pause)
+                if (mode == Mode::PAUSE)
                 {
-                    mode = Mode::normal; // Resume game
-                    frame_time = 200000; // Reset to normal speed
+                    mode = Mode::NORMAL; // Resume game
+                    frame_time = 200000; // Reset to NORMAL speed
                 }
                 else
                 {
-                    mode = Mode::pause; // Pause game
+                    mode = Mode::PAUSE; // PAUSE game
                 }
                 break;
             case 'f':
-                if (mode == Mode::fast)
+                if (mode == Mode::FAST)
                 {
-                    mode = Mode::normal; // Resume game
-                    frame_time = 200000; // Reset to normal speed
+                    mode = Mode::NORMAL; // Resume game
+                    frame_time = 200000; // Reset to NORMAL speed
                 }
-                else if (mode != Mode::pause && cooldown_timer == 0)
+                else if (mode != Mode::PAUSE && cooldown_timer == 0)
                 {
-                    mode = Mode::fast;  // Fast mode
-                    frame_time = 50000; // Faster speed: 0.05 seconds
+                    mode = Mode::FAST;  // FAST mode
+                    frame_time = 50000; // FASTer speed: 0.05 seconds
                     acceleration_timer = acc_time;
                 }
                 break;
@@ -113,35 +100,38 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
             }
         }
 
-        if (mode == Mode::pause)
+        if (mode == Mode::PAUSE)
         {
             game_win->render_game(coordinate_y, coordinate_x);
-            stat_win->update_status(coordinate_y, coordinate_x, mode == Mode::fast ? "Fast" : mode == Mode::pause ? "Pause"
-                                                                                                                  : "Normal");
+            stat_win->update_status(coordinate_y, coordinate_x, mode == Mode::FAST ? "FAST" : mode == Mode::PAUSE ? "PAUSE"
+                                                                                                                  : "NORMAL");
             stat_win->update_timer(acceleration_timer, cooldown_timer);
             usleep(100000);
             continue;
         }
         // Handle acceleration timer
-        if (mode == Mode::fast && acceleration_timer > 0)
+        if (mode == Mode::FAST && acceleration_timer > 0)
         {
             acceleration_timer--; // Decrement timer
             if (acceleration_timer == 0)
             {
-                mode = Mode::normal;        
-                frame_time = 200000;      
-                cooldown_timer = cool_time; 
+                mode = Mode::NORMAL;
+                frame_time = 200000;
+                cooldown_timer = cool_time;
             }
         }
-        if (cooldown_timer > 0)
+        if (mode == Mode::NORMAL && acceleration_timer > 0)
+        {
+            acceleration_timer++;
+        }
+        else if (cooldown_timer > 0)
         {
             cooldown_timer--; // Decrement cooldown timer
-            if(cooldown_timer == 0)
+            if (cooldown_timer == 0)
             {
                 acceleration_timer = acc_time;
             }
         }
-
 
         coordinate_y += direction.first;
         coordinate_x += direction.second;
@@ -166,8 +156,8 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
             map[coordinate_y][coordinate_x] = id;
         }
         game_win->render_game(coordinate_y, coordinate_x);
-        stat_win->update_status(coordinate_y, coordinate_x, mode == Mode::fast ? "Burst" : mode == Mode::pause ? "Pause"
-                                                                                                              : "Normal");
+        stat_win->update_status(coordinate_y, coordinate_x, mode == Mode::FAST ? "Burst" : mode == Mode::PAUSE ? "PAUSE"
+                                                                                                               : "NORMAL");
         stat_win->update_timer(acceleration_timer, cooldown_timer);
         usleep(frame_time); // Sleep for 0.1sec, speed of the game
     }
@@ -221,19 +211,23 @@ void send_server_room(int sockfd, int room_id)
     sprintf(room_str, "%d", room_id);
     write(sockfd, (void *)room_str, strlen(room_str));
 }
+
 int main()
 {
     // signal(SIGWINCH, SIG_IGN); /* ignore window size changes */
-    initscr();
     setlocale(LC_ALL, "");
+    initscr();
     start_color();
+    use_default_colors();
     cbreak();             // disable line buffering, but allow signals(ctrl+c, ctrl+z, etc.)
     keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
-    init_pair(1, COLOR_RED, COLOR_BLACK);
-    init_pair(2, COLOR_YELLOW, COLOR_BLACK);
-    init_pair(3, COLOR_WHITE, COLOR_BLACK);
-    init_pair(4, COLOR_BLACK, COLOR_WHITE);
-    init_pair(5, COLOR_BLUE, COLOR_BLACK);
+    init_color(COLOR_GRAY, 500, 500, 500);
+    init_pair(1, COLOR_RED, -1);
+    init_pair(2, COLOR_YELLOW, -1);
+    init_pair(3, COLOR_WHITE, -1);
+    init_pair(4, COLOR_BLUE, -1);
+    init_pair(5, COLOR_GRAY, -1);
+    init_pair(20, COLOR_BLACK, COLOR_WHITE);
     GameStatus status = GameStatus::INITIAL;
     // windows
     while (true)

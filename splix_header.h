@@ -27,10 +27,24 @@
 #define acc_time 50
 #define cool_time 50
 
+enum GameStatus
+{
+    INITIAL,
+    ROOM_SELECTION,
+    GAMING,
+    GAME_OVER
+};
+enum Mode
+{
+    NORMAL,
+    FAST,
+    PAUSE
+};
+
 // id allocate by server
 const int id = 1;
 extern int map[MAP_HEIGHT][MAP_WIDTH];
-
+extern Mode mode;
 // classes
 
 class Window
@@ -70,7 +84,7 @@ public:
     {
         wattron(win, A_BOLD);
         box(win, 0, 0);
-        wbkgd(win, COLOR_PAIR(4));
+        wbkgd(win, COLOR_PAIR(20));
         mvwprintw(win, 1, 1, "Enter your name");
         wrefresh(win);
         wattroff(win, A_BOLD);
@@ -91,6 +105,14 @@ public:
 class Splix_Window : public Window
 {
 public:
+    void draw() override
+    {
+        wattron(win, A_BOLD);
+        //wborder(win, L'│', L'│', L'─', L'─', L'╭', L'╮', L'╰', L'╯');
+        box(win, 0, 0);
+        wrefresh(win);
+        wattroff(win, A_BOLD);
+    }
     Splix_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void create_initial_territory(int coordinate_y, int coordinate_x);
     void render_game(int coordinate_y, int coordinate_x);

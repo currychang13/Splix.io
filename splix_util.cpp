@@ -218,6 +218,19 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
     if (start_x + win_cols > MAP_WIDTH)
         start_x = MAP_WIDTH - win_cols;
 
+    // Change border color if the character is near the map's edge
+    bool near_edge = (coordinate_y <= half_rows || coordinate_y >= MAP_HEIGHT - half_rows ||
+                      coordinate_x <= half_cols || coordinate_x >= MAP_WIDTH - half_cols);
+
+    // Set border color
+    if (near_edge)
+    {
+        wattron(win, A_BLINK); // Red for edge proximity
+        box(win, 0, 0);
+        wattroff(win, A_BLINK); // Turn off border color
+    }
+    // Draw the border
+
     // Clear the window and redraw the border
     setlocale(LC_ALL, "");
     // Render the visible portion of the map
@@ -238,15 +251,18 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
             switch (map[map_y][map_x])
             {
             case 0:
-                symbol = L"."; // Empty space
-                wattron(win, COLOR_PAIR(5));
+                symbol = L".";               // Empty space
+                wattron(win, COLOR_PAIR(5)); // gray
                 break;
             case -id:
                 symbol = L"■"; // Filled territory
                 wattron(win, COLOR_PAIR(id));
                 break;
             case id:
-                symbol = L"▪"; // Player trail
+                if (mode == Mode::FAST)
+                    symbol = L"★"; // Player trail
+                else
+                    symbol = L"▪"; // Player trail
                 wattron(win, COLOR_PAIR(id));
                 break;
             default:
@@ -258,7 +274,7 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
             // Render the character or cell
             if (map_y == coordinate_y && map_x == coordinate_x)
             {
-                symbol = L"O"; // Player
+                symbol = L"◯"; // Player
             }
             mvwaddwstr(win, i + 1, j + 1, symbol);
             wattroff(win, COLOR_PAIR(3) | COLOR_PAIR(id));
@@ -450,7 +466,7 @@ void Splix_Window::exit_game(int flag)
         }
     }
     // animation
-    if (flag == 1) // normal exit
+    if (flag == 1) // NORMAL exit
     {
         // animation
         char msg[20];
