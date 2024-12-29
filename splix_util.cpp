@@ -154,8 +154,8 @@ void Input_Window::get_user_input()
 
             if (cursor_position <= 1)
             {
-                wmove(win, 1, 1);
                 mvwprintw(win, 1, 1, "Enter your name");
+                wmove(win, 1, 1);
             }
             continue;
         }
@@ -266,28 +266,6 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
     }
     // Refresh the window after rendering
     wrefresh(win);
-}
-void Status_Window::update_status(int coordinate_y, int coordinate_x)
-{
-    // Update the status window
-    wattron(win, A_BOLD);
-    mvwprintw(win, 1, 1, "Status");
-    // get status from server
-    int score = 0;
-    for (int i = 0; i < MAP_HEIGHT; i++)
-    {
-        for (int j = 0; j < MAP_WIDTH; j++)
-        {
-            if (map[i][j] == -id)
-            {
-                score++;
-            }
-        }
-    }
-    mvwprintw(win, 2, 1, "Score: %d", score);
-    mvwprintw(win, 3, 1, "Position: (%d, %d)", coordinate_y, coordinate_x);
-    wrefresh(win);
-    wattroff(win, A_BOLD);
 }
 void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
 {
@@ -503,6 +481,74 @@ void Splix_Window::exit_game(int flag)
     }
 }
 
+// Status_Window functions
+void Status_Window::update_status(int coordinate_y, int coordinate_x, const char *mode)
+{
+    // Update the status window
+    wattron(win, A_BOLD);
+    mvwprintw(win, 1, 1, "Status");
+    // get status from server
+    int score = 0;
+    for (int i = 0; i < MAP_HEIGHT; i++)
+    {
+        for (int j = 0; j < MAP_WIDTH; j++)
+        {
+            if (map[i][j] == -id)
+            {
+                score++;
+            }
+        }
+    }
+    mvwprintw(win, 2, 1, "Score: %d", score);
+    mvwprintw(win, 3, 1, "Position: (%d, %d)", coordinate_y, coordinate_x);
+    mvwprintw(win, 4, 1, "                   ");
+    mvwprintw(win, 4, 1, "Mode: %s", mode);
+    wrefresh(win);
+    wattroff(win, A_BOLD);
+}
+void Status_Window::update_timer(int acceleration_timer, int cooldown_timer)
+{
+    setlocale(LC_ALL, "");
+
+    const char *full_block = "=";
+    const int bar_length = width - 4;
+
+    int filled_blocks = 0;
+
+    if (acceleration_timer > 0)
+    {
+        wattron(win, COLOR_PAIR(2) | A_BOLD);
+        mvwprintw(win, 6, (width - 10) / 2, "<Boosting>");
+        filled_blocks = (acceleration_timer * bar_length) / acc_time;
+    }
+    else if (cooldown_timer > 0)
+    {
+        wattron(win, A_BOLD);
+        mvwprintw(win, 6, (width - 10) / 2, "<Cooldown>");
+        filled_blocks = ((cool_time - cooldown_timer) * bar_length) / cool_time;
+    }
+
+    mvwprintw(win, 7, 1, "[");
+
+    for (int i = 0; i < bar_length; i++)
+    {
+        if (i < filled_blocks)
+        {
+            mvwprintw(win, 7, 2 + i, "%s", full_block);
+        }
+        else
+        {
+            mvwprintw(win, 7, 2 + i, " ");
+        }
+    }
+
+    mvwprintw(win, 7, width - 2, "]");
+    wattroff(win, COLOR_PAIR(2) | A_BOLD);
+
+    wrefresh(win);
+}
+
+// Gameover_Window functions
 void Gameover_Window::render_gameover()
 {
     wattron(win, COLOR_PAIR(1) | A_BOLD);

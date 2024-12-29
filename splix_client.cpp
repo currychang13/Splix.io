@@ -1,4 +1,5 @@
 #include "splix_header.h"
+
 int map[MAP_HEIGHT][MAP_WIDTH];
 enum class GameStatus
 {
@@ -6,6 +7,13 @@ enum class GameStatus
     ROOM_SELECTION,
     GAMING,
     GAME_OVER
+};
+
+enum class Mode
+{
+    normal,
+    pause,
+    fast
 };
 
 void game_loop(Splix_Window *game_win, Status_Window *stat_win)
@@ -32,16 +40,19 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
     map[coordinate_y][coordinate_x] = id;
 
     // default direction
-    std::pair<int, int> direction; // y and x
-    direction.first = 0;
-    direction.second = 1;
+    std::pair<int, int> direction = {0, 1}; // y and x
 
     // create initial territory
     game_win->create_initial_territory(coordinate_y, coordinate_x);
     game_win->render_game(coordinate_y, coordinate_x);
-    stat_win->update_status(coordinate_y, coordinate_x);
+    stat_win->update_status(coordinate_y, coordinate_x, "Normal");
+
     // gaming
     int ch; // use int to store the character like key_up, key_down, etc.
+    Mode mode = Mode::normal;
+    useconds_t frame_time = 200000; // 0.2 sec
+    int acceleration_timer = acc_time;
+    int cooldown_timer = 0;
     for (;;)
     {
         if ((ch = wgetch(game_win->win)) != ERR)
@@ -69,6 +80,30 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
             case KEY_RIGHT:
                 new_direction = {0, 1};
                 break;
+            case 'p':
+                if (mode == Mode::pause)
+                {
+                    mode = Mode::normal; // Resume game
+                    frame_time = 200000; // Reset to normal speed
+                }
+                else
+                {
+                    mode = Mode::pause; // Pause game
+                }
+                break;
+            case 'f':
+                if (mode == Mode::fast)
+                {
+                    mode = Mode::normal; // Resume game
+                    frame_time = 200000; // Reset to normal speed
+                }
+                else if (mode != Mode::pause && cooldown_timer == 0)
+                {
+                    mode = Mode::fast;  // Fast mode
+                    frame_time = 50000; // Faster speed: 0.05 seconds
+                    acceleration_timer = acc_time;
+                }
+                break;
             default:
                 break;
             }
@@ -78,10 +113,38 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
             }
         }
 
-        // update position
+        if (mode == Mode::pause)
+        {
+            game_win->render_game(coordinate_y, coordinate_x);
+            stat_win->update_status(coordinate_y, coordinate_x, mode == Mode::fast ? "Fast" : mode == Mode::pause ? "Pause"
+                                                                                                                  : "Normal");
+            stat_win->update_timer(acceleration_timer, cooldown_timer);
+            usleep(100000);
+            continue;
+        }
+        // Handle acceleration timer
+        if (mode == Mode::fast && acceleration_timer > 0)
+        {
+            acceleration_timer--; // Decrement timer
+            if (acceleration_timer == 0)
+            {
+                mode = Mode::normal;        
+                frame_time = 200000;      
+                cooldown_timer = cool_time; 
+            }
+        }
+        if (cooldown_timer > 0)
+        {
+            cooldown_timer--; // Decrement cooldown timer
+            if(cooldown_timer == 0)
+            {
+                acceleration_timer = acc_time;
+            }
+        }
+
+
         coordinate_y += direction.first;
         coordinate_x += direction.second;
-
         // check if die or not
         if (!game_win->check_valid_position(coordinate_y, coordinate_x))
             return;
@@ -103,8 +166,10 @@ void game_loop(Splix_Window *game_win, Status_Window *stat_win)
             map[coordinate_y][coordinate_x] = id;
         }
         game_win->render_game(coordinate_y, coordinate_x);
-        stat_win->update_status(coordinate_y, coordinate_x);
-        usleep(200000); // Sleep for 0.1sec, speed of the game
+        stat_win->update_status(coordinate_y, coordinate_x, mode == Mode::fast ? "Burst" : mode == Mode::pause ? "Pause"
+                                                                                                              : "Normal");
+        stat_win->update_timer(acceleration_timer, cooldown_timer);
+        usleep(frame_time); // Sleep for 0.1sec, speed of the game
     }
 }
 
@@ -119,7 +184,7 @@ int connect_to_server()
     // Initialize server address
     bzero(&servaddr, sizeof(servaddr));                       // Clear struct
     servaddr.sin_family = AF_INET;                            // IPv4
-    servaddr.sin_port = 12345;                                // Server port (convert to network byte order)
+    servaddr.sin_port = htonl(12345);                         // Server port (convert to network byte order)
     inet_pton(AF_INET, "140.113.66.205", &servaddr.sin_addr); // Convert IP address to binary form
 
     // Connect to server
@@ -130,7 +195,7 @@ int connect_to_server()
 void send_server_name(int sockfd, const char *name)
 {
     // Send name to server
-    write(sockfd, (void *)name, strlen(name));
+    write(sockfd, name, strlen(name));
 }
 std::vector<std::pair<int, int>> receive_room_info(int sockfd)
 {
@@ -176,15 +241,15 @@ int main()
         Initial_Window init_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
         Room_Window room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
         Input_Window input_win(HEIGHT_INIT_WIN / 12, WIDTH_GAME_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 12) / 2.5, (COLS - WIDTH_GAME_WIN / 2) / 2);
-        Status_Window stat_win(HEIGHT_GAME_WIN / 10, WIDTH_GAME_WIN / 4, (LINES - HEIGHT_GAME_WIN) / 2, (COLS + WIDTH_GAME_WIN) / 2);
+        Status_Window stat_win(HEIGHT_GAME_WIN / 5, WIDTH_GAME_WIN / 4, (LINES - HEIGHT_GAME_WIN) / 2, (COLS + WIDTH_GAME_WIN) / 2);
         Splix_Window splix_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
         Gameover_Window gameover_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
-        
-        //uncomment these two lines to test server
-        // int sockfd = connect_to_server();
+
+        // uncomment these two lines to test server
+        //  int sockfd = connect_to_server();
         std::vector<std::pair<int, int>> room_info;
 
-        //comment these two lines to test server
+        // comment these two lines to test server
         room_info.push_back({1, 2});
         room_info.push_back({2, 3});
         switch (status)

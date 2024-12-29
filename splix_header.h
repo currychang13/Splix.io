@@ -23,6 +23,10 @@
 #define HEIGHT_INIT_WIN 50
 #define WIDTH_INIT_WIN 100
 #define name_length 20
+
+#define acc_time 50
+#define cool_time 50
+
 // id allocate by server
 const int id = 1;
 extern int map[MAP_HEIGHT][MAP_WIDTH];
@@ -79,7 +83,8 @@ protected:
     int score = 0;
 
 public:
-    void update_status(int coordinate_y, int coordinate_x);
+    void update_status(int coordinate_y, int coordinate_x, const char *mode);
+    void update_timer(int remain_time, int cooldown);
     Status_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
 };
 

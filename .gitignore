@@ -54,3 +54,7 @@ dkms.conf
 # Vsocde
 .vscode/
 test*
+
+# ELF
+server 
+splix_client
