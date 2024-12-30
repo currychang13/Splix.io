@@ -45,6 +45,15 @@ struct PlayerArgs
     int clientFd;
 };
 
+// Structure to pass arguments to the player thread
+struct PlayerThreadArgs
+{
+    int clientFd;
+    GameManager *gameManager;
+    int roomId;
+    int playerId;
+};
+
 // Client Information Structure
 struct ClientInfo
 {
@@ -86,10 +95,10 @@ private:
     int nextRoomId;
 };
 
-// GameManager Class
 struct Player
 {
     int fd;
+    int playerId; // Newly added field for sequential player ID
     int x;
     int y;
     std::pair<int, int> direction; // (dy, dx)
@@ -101,6 +110,9 @@ struct GameState
     int roomId;
     int map[600][600];
     std::map<int, Player> players; // Keyed by client fd
+    int nextPlayerId;              // Newly added field for tracking next player ID
+
+    GameState() : nextPlayerId(1) {}
 };
 
 class GameManager
@@ -113,12 +125,17 @@ public:
     void gameLoop(int roomId);
     bool isGameActive(int roomId);
     void addPlayerToGame(int roomId, int clientFd);
+    bool isEnclosure(int y, int x);
+    std::vector<std::pair<int, int>> findInsidePoints();
+    void fillTerritory(const std::vector<std::pair<int, int>> &inside_points);
+    void initializeGameState(int roomId);
+    void handlePlayerMessage(int roomId, int clientFd, const std::string &message);
+    void handlePlayerDisconnection(int roomId, int clientFd);
 
 private:
     RoomManager &roomManager;
     Server &server;
     std::map<int, GameState> gameStates; // roomId -> GameState
-    void initializeGameState(int roomId);
     void updateAllPlayers(int roomId);
     void checkPlayerDeaths(int roomId);
     void broadcastGameState(int roomId);
@@ -137,7 +154,11 @@ public:
     // Accessors for GameManager and RoomManager
     RoomManager &getRoomManager() { return roomManager; }
     GameManager &getGameManager() { return gameManager; }
-    pthread_mutex_t &getGameMutex() { return gameMutex; }
+    pthread_mutex_t &getGameMutex()
+    {
+        gameMutex = PTHREAD_MUTEX_INITIALIZER;
+        return gameMutex;
+    }
 
     const std::map<int, ClientInfo> &getClients() const
     {
@@ -191,10 +212,8 @@ void RoomManager::sendRoomInfo(int clientFd, Server &server)
             perror("write error in sendRoomInfo");
         }
     }
-    std::cout << "room info sent\n";
+    std::cout << "Room info sent to Client FD " << clientFd << "\n";
 }
-
-// FILE: server.cpp
 
 bool RoomManager::joinRoom(int roomId, int clientFd, Server &server)
 {
@@ -204,11 +223,6 @@ bool RoomManager::joinRoom(int roomId, int clientFd, Server &server)
         // Room exists. Add client to the room.
         it->second.clients.push_back(clientFd);
         std::cout << "Client FD " << clientFd << " joined existing room " << roomId << std::endl;
-
-        if (server.getGameManager().isGameActive(roomId))
-        {
-            server.getGameManager().addPlayerToGame(roomId, clientFd);
-        }
 
         // Prepare the list of other users' usernames
         std::stringstream ss;
@@ -245,16 +259,6 @@ bool RoomManager::joinRoom(int roomId, int clientFd, Server &server)
         newRoom.clients.push_back(clientFd);
         rooms[roomId] = newRoom;
         std::cout << "Client FD " << clientFd << " created and joined new room " << roomId << std::endl;
-
-        // Notify the client that a new room has been created and joined
-        std::string ack = "none";
-        ssize_t bytesSent = write(clientFd, ack.c_str(), ack.length());
-        if (bytesSent < 0)
-        {
-            perror("write error in joinRoom (new room creation)");
-            return false;
-        }
-
         return true;
     }
 }
@@ -274,14 +278,6 @@ static void *gameLoopWrapper(void *arg)
 // Implementation of GameManager Methods
 void GameManager::startGame(int roomId)
 {
-    if (isGameActive(roomId))
-    {
-        std::cout << "Game already active in room " << roomId << std::endl;
-        return;
-    }
-
-    initializeGameState(roomId);
-
     // Create a new thread for the game loop
     pthread_t thread;
     GameLoopArgs *args = new GameLoopArgs();
@@ -296,8 +292,6 @@ void GameManager::startGame(int roomId)
     }
 
     pthread_detach(thread);
-
-    std::cout << "Game started in room " << roomId << std::endl;
 }
 
 void GameManager::initializeGameState(int roomId)
@@ -316,60 +310,39 @@ void GameManager::initializeGameState(int roomId)
             gameState.map[i][j] = 0;
         }
     }
-
-    // Get all clients in the room
-    Room &room = roomManager.getAllRooms().at(roomId);
-    srand(time(NULL));
-
-    // Assign each player a random starting position and direction
-    for (auto &fd : room.clients)
-    {
-        Player player;
-        player.fd = fd;
-        player.x = rand() % MAP_WIDTH;
-        player.y = rand() % MAP_HEIGHT;
-        // Assign a random direction: up, down, left, right
-        int dir = rand() % 4;
-        switch (dir)
-        {
-        case 0:
-            player.direction = {-1, 0};
-            break; // Up
-        case 1:
-            player.direction = {1, 0};
-            break; // Down
-        case 2:
-            player.direction = {0, -1};
-            break; // Left
-        case 3:
-            player.direction = {0, 1};
-            break; // Right
-        }
-        player.isAlive = true;
-
-        // Update the map with player's initial position
-        const auto &clientsMap = server.getClients(); // Using the getter
-        auto clientIt = clientsMap.find(fd);
-        gameState.map[player.y][player.x] = clientIt->second.id;
-
-        // Add player to game state
-        gameState.players[fd] = player;
-
-        // Notify the client of their initial position and direction
-        std::string initMsg = "INIT " + std::to_string(player.x) + " " + std::to_string(player.y) + " " +
-                              std::to_string(player.direction.first) + " " +
-                              std::to_string(player.direction.second) + "\n";
-        write(fd, initMsg.c_str(), initMsg.length());
-    }
-
     // Store the game state
     gameStates[roomId] = gameState;
+}
 
-    // Notify all players that the game has started
-    std::string startMsg = "GAME_START\n";
-    for (auto &fd : room.clients)
+void *playerThreadFunction(void *args)
+{
+    PlayerThreadArgs *Playerargs = (PlayerThreadArgs *) args;
+    char buffer[1024];
+    while (true)
     {
-        write(fd, startMsg.c_str(), startMsg.length());
+        ssize_t bytesRead = read(Playerargs->clientFd, buffer, sizeof(buffer) - 1);
+        if (bytesRead <= 0)
+        {
+            if (bytesRead < 0)
+            {
+                perror("read error in playerThreadFunction");
+            }
+            else
+            {
+                std::cout << "Client FD " << Playerargs->clientFd << " disconnected.\n";
+            }
+
+            // Handle player disconnection
+            Playerargs->gameManager->handlePlayerDisconnection(Playerargs->roomId, Playerargs->clientFd);
+            close(Playerargs->clientFd);
+            return nullptr;
+        }
+
+        buffer[bytesRead] = '\0';
+        std::string message(buffer);
+
+        // Handle the received message
+        Playerargs->gameManager->handlePlayerMessage(Playerargs->roomId, Playerargs->clientFd, message);
     }
 }
 
@@ -380,20 +353,281 @@ void GameManager::addPlayerToGame(int roomId, int clientFd)
     auto &gameState = gameStates[roomId];
     Player player;
     player.fd = clientFd;
-    player.x = rand() % MAP_WIDTH;
-    player.y = rand() % MAP_HEIGHT;
-    player.direction = {0, 1}; // Default direction
+    player.direction = {0, 1}; // Default direction: moving right
     player.isAlive = true;
+
+    // Assign a sequential playerId based on join order
+    int playerId = gameState.nextPlayerId++;
+    player.playerId = playerId;
+
+    // Generate a random starting position with a minimum distance from walls
+    srand(time(NULL) + clientFd); // Seed with current time and clientFd for uniqueness
+    const int MIN_DISTANCE_FROM_WALL = 30;
+
+    int start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
+    int start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
+
+    // Ensure the starting position is on an empty cell
+    while (gameState.map[start_y][start_x] != 0)
+    {
+        start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
+        start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
+    }
+
+    player.x = start_x;
+    player.y = start_y;
+
+    // Assign the player's ID to the map
+    gameState.map[player.y][player.x] = playerId;
+
+    // Mark the surrounding 8 cells as the player's territory (-playerId)
+    for (int dy = -1; dy <= 1; ++dy)
+    {
+        for (int dx = -1; dx <= 1; ++dx)
+        {
+            int new_x = player.x + dx;
+            int new_y = player.y + dy;
+
+            // Check map boundaries
+            if (new_x >= 0 && new_x < MAP_WIDTH && new_y >= 0 && new_y < MAP_HEIGHT)
+            {
+                // Only set if the cell is empty
+                if (gameState.map[new_y][new_x] == 0)
+                {
+                    gameState.map[new_y][new_x] = -playerId;
+                }
+            }
+        }
+    }
 
     // Add player to game state
     gameState.players[clientFd] = player;
-    gameState.map[player.y][player.x] = server.getClients().at(clientFd).id;
 
-    // Notify the client of their initial position
-    std::string initMsg = "INIT " + std::to_string(player.x) + " " + std::to_string(player.y) + "\n";
-    write(clientFd, initMsg.c_str(), initMsg.length());
+    // Prepare arguments for player thread
+    PlayerThreadArgs *ptArgs = new PlayerThreadArgs();
+    ptArgs->clientFd = clientFd;
+    ptArgs->gameManager = this;
+    ptArgs->roomId = roomId;
+    ptArgs->playerId = playerId;
+
+    // Create a new thread for the player
+    pthread_t playerThread;
+    if (pthread_create(&playerThread, nullptr, playerThreadFunction, ptArgs) != 0)
+    {
+        std::cerr << "Failed to create thread for Player ID " << playerId << " (Client FD " << clientFd << ")\n";
+        delete ptArgs;
+        // Handle thread creation failure (e.g., remove player from game)
+        pthread_mutex_unlock(&server.getGameMutex());
+        return;
+    }
+
+    pthread_detach(playerThread); // Detach the thread to allow independent execution
+
+    std::cout << "Player ID " << playerId << " (Client FD " << clientFd << ") added to Room " << roomId << "\n";
 
     pthread_mutex_unlock(&server.getGameMutex());
+}
+
+void GameManager::handlePlayerMessage(int roomId, int clientFd, const std::string &message)
+{
+    pthread_mutex_lock(&server.getGameMutex());
+
+    // Parse and handle the message
+    // Example: Move command "MOVE UP", "MOVE DOWN", etc.
+    if (message.find("MOVE") == 0)
+    {
+        std::string direction = message.substr(5); // Extract direction
+
+        auto &gameState = gameStates[roomId];
+        auto it = gameState.players.find(clientFd);
+        if (it != gameState.players.end() && it->second.isAlive)
+        {
+            if (direction == "UP")
+            {
+                it->second.direction = {-1, 0};
+            }
+            else if (direction == "DOWN")
+            {
+                it->second.direction = {1, 0};
+            }
+            else if (direction == "LEFT")
+            {
+                it->second.direction = {0, -1};
+            }
+            else if (direction == "RIGHT")
+            {
+                it->second.direction = {0, 1};
+            }
+            else
+            {
+                std::string errorMsg = "Invalid direction. Use UP, DOWN, LEFT, or RIGHT.\n";
+                write(clientFd, errorMsg.c_str(), errorMsg.length());
+            }
+        }
+    }
+    // Handle other message types as needed
+
+    pthread_mutex_unlock(&server.getGameMutex());
+}
+
+void GameManager::handlePlayerDisconnection(int roomId, int clientFd)
+{
+    pthread_mutex_lock(&server.getGameMutex());
+
+    auto &gameState = gameStates[roomId];
+    auto it = gameState.players.find(clientFd);
+    if (it != gameState.players.end())
+    {
+        // Clear the player's path and territory from the map
+        gameState.map[it->second.y][it->second.x] = 0;
+
+        // Optionally, remove surrounding territory or handle game-specific logic
+        // ...
+
+        std::cout << "Player ID " << it->second.playerId << " (Client FD " << clientFd << ") disconnected from Room " << roomId << "\n";
+
+        // Remove player from the game state
+        gameState.players.erase(it);
+
+        // Optionally, notify other players in the room
+        std::string notifyMsg = "Player " + std::to_string(it->second.playerId) + " has disconnected.\n";
+    }
+
+    pthread_mutex_unlock(&server.getGameMutex());
+}
+
+
+bool GameManager::isEnclosure(int y, int x)
+{
+    // BFS to determine if the trail forms a closed boundary
+    std::vector<std::vector<bool>> visited(MAP_HEIGHT, std::vector<bool>(MAP_WIDTH, false));
+    std::queue<std::pair<int, int>> q;
+
+    // Start from the current position
+    q.push({y, x});
+    visited[y][x] = true;
+
+    bool touches_border = false;
+
+    int dy[] = {-1, 1, 0, 0};
+    int dx[] = {0, 0, -1, 1};
+
+    while (!q.empty())
+    {
+        auto [cy, cx] = q.front();
+        q.pop();
+
+        for (int d = 0; d < 4; d++)
+        {
+            int ny = cy + dy[d];
+            int nx = cx + dx[d];
+
+            // Out-of-bounds check
+            if (ny < 0 || ny >= MAP_HEIGHT || nx < 0 || nx >= MAP_WIDTH)
+            {
+                touches_border = true;
+                continue;
+            }
+
+            // Skip visited cells
+            if (visited[ny][nx])
+                continue;
+
+            // Only consider trail (`id`) and territory (`-id`)
+            if (gameStates[roomId].map[ny][nx] == id || map[ny][nx] == -id)
+            {
+                visited[ny][nx] = true;
+                q.push({ny, nx});
+            }
+        }
+    }
+
+    // If the component touches the border, it's not an enclosure
+    return !touches_border;
+}
+std::vector<std::pair<int, int>> GameManager::findInsidePoints()
+{
+    std::vector<std::vector<bool>> visited(MAP_HEIGHT, std::vector<bool>(MAP_WIDTH, false));
+    std::queue<std::pair<int, int>> q;
+
+    int dy[] = {-1, 1, 0, 0};
+    int dx[] = {0, 0, -1, 1};
+
+    // Mark all border-connected areas as "outside"
+    for (int i = 0; i < MAP_HEIGHT; i++)
+    {
+        for (int j : {0, MAP_WIDTH - 1})
+        {
+            if (map[i][j] != 0 /*&& map[i][j] != id*/)
+            {
+                visited[i][j] = true; // Mark borders and filled territory
+            }
+            else if (!visited[i][j])
+            {
+                q.push({i, j});
+                visited[i][j] = true;
+            }
+        }
+    }
+    for (int j = 0; j < MAP_WIDTH; j++)
+    {
+        for (int i : {0, MAP_HEIGHT - 1})
+        {
+            if (map[i][j] != 0 /*&& map[i][j] != id*/)
+            {
+                visited[i][j] = true; // Mark borders and filled territory
+            }
+            else if (!visited[i][j])
+            {
+                q.push({i, j});
+                visited[i][j] = true;
+            }
+        }
+    }
+
+    // Flood-fill to mark all "outside" cells
+    while (!q.empty())
+    {
+        auto [y, x] = q.front();
+        q.pop();
+
+        for (int d = 0; d < 4; d++)
+        {
+            int ny = y + dy[d];
+            int nx = x + dx[d];
+
+            if (ny < 0 || ny >= MAP_HEIGHT || nx < 0 || nx >= MAP_WIDTH || visited[ny][nx])
+                continue;
+            // other wise, mark as visited
+            if (map[ny][nx] != id && map[ny][nx] != -id)
+            {
+                visited[ny][nx] = true;
+                q.push({ny, nx});
+            }
+        }
+    }
+
+    // Collect all unvisited empty cells as inside points
+    std::vector<std::pair<int, int>> inside_points;
+    for (int y = 1; y < MAP_HEIGHT - 1; y++)
+    {
+        for (int x = 1; x < MAP_WIDTH - 1; x++)
+        {
+            if (!visited[y][x] && (map[y][x] == 0 || map[y][x] == id))
+            {
+                inside_points.push_back({y, x});
+            }
+        }
+    }
+
+    return inside_points;
+}
+void GameManager::fillTerritory(const std::vector<std::pair<int, int>> &inside_points)
+{
+    for (const auto &[y, x] : inside_points)
+    {
+        map[y][x] = -id; // Mark as filled territory
+    }
 }
 
 void GameManager::handleGameMessage(int roomId, const std::string &message)
@@ -403,23 +637,20 @@ void GameManager::handleGameMessage(int roomId, const std::string &message)
 
 void GameManager::gameLoop(int roomId)
 {
-    while (isGameActive(roomId))
-    {
-        pthread_mutex_lock(&server.getGameMutex());
+    pthread_mutex_lock(&server.getGameMutex());
 
-        // Update game state
-        updateAllPlayers(roomId);
+    // Update game state
+    updateAllPlayers(roomId);
 
-        // Check for player deaths
-        checkPlayerDeaths(roomId);
+    // Check for player deaths
+    checkPlayerDeaths(roomId);
 
-        // Broadcast game state to all clients
-        broadcastGameState(roomId);
+    // Broadcast game state to all clients
+    broadcastGameState(roomId);
 
-        pthread_mutex_unlock(&server.getGameMutex());
+    pthread_mutex_unlock(&server.getGameMutex());
 
-        sleep(1); // Simulate game ticks
-    }
+    sleep(1); // Simulate game ticks
 
     endGame(roomId);
 }
@@ -754,8 +985,11 @@ void Server::handleStartCommand(int clientFd, const std::string &message)
 {
     if (message != "start")
     {
-        std::string error = "Invalid command. Type 'start' to begin the game:\n";
-        write(clientFd, error.c_str(), error.length());
+        // Update client's state back to ROOM_SELECTION
+        clients[clientFd].state = ClientState::ROOM_SELECTION;
+
+        // Send room information to the client
+        roomManager.sendRoomInfo(clientFd, *this);
         return;
     }
 
@@ -763,18 +997,22 @@ void Server::handleStartCommand(int clientFd, const std::string &message)
     if (roomId == -1)
     {
         std::string error = "You are not in any room.\n";
-        write(clientFd, error.c_str(), error.length());
+        ssize_t bytesWritten = write(clientFd, error.c_str(), error.length());
+        if (bytesWritten < 0)
+        {
+            perror("write error in handleStartCommand");
+        }
         return;
     }
+
+    clients[clientFd].state = ClientState::PLAYING_GAME;
+    gameManager.initializeGameState(roomId);
+    gameManager.addPlayerToGame(roomId, clientFd);
 
     // Start the game in GameManager
     gameManager.startGame(roomId);
 
-    // Update client's state
-    clients[clientFd].state = ClientState::PLAYING_GAME;
-
-    std::string startMsg = "Game started in Room " + std::to_string(roomId) + "\n";
-    write(clientFd, startMsg.c_str(), startMsg.length());
+    std::cout << "Client FD " << clientFd << " started game in Room " << roomId << "\n";
 }
 
 // Get the room ID of a client
