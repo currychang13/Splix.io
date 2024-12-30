@@ -49,6 +49,29 @@ extern int map[MAP_HEIGHT][MAP_WIDTH];
 extern Mode mode;
 // classes
 
+class GameTicker
+{
+private:
+    std::chrono::milliseconds frame_duration;
+    std::chrono::steady_clock::time_point last_tick;
+
+public:
+    GameTicker(int fps) : frame_duration(1000 / fps), last_tick(std::chrono::steady_clock::now()) {}
+
+    bool is_tick_due()
+    {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_tick);
+
+        if (elapsed >= frame_duration)
+        {
+            last_tick = now;
+            return true;
+        }
+        return false;
+    }
+};
+
 class Window
 {
 public:
@@ -64,15 +87,15 @@ public:
     }
     virtual void draw()
     {
+        wattron(win, A_BOLD);
         Custom_Border_2(win);
+        wattroff(win, A_BOLD);
         wrefresh(win);
     }
     void Custom_Border_1(WINDOW *win)
     {
-        std::setlocale(LC_ALL, ""); // Ensure wide character support
-        // Define cchar_t variables for border characters
+        std::setlocale(LC_ALL, "");
         cchar_t vertical, horizontal, topLeft, topRight, bottomLeft, bottomRight;
-        // Set wide characters directly
         setcchar(&vertical, L"│", 0, 0, nullptr);
         setcchar(&horizontal, L"─", 0, 0, nullptr);
         setcchar(&topLeft, L"╭", 0, 0, nullptr);
@@ -80,16 +103,13 @@ public:
         setcchar(&bottomLeft, L"╰", 0, 0, nullptr);
         setcchar(&bottomRight, L"╯", 0, 0, nullptr);
 
-        // Draw the custom border
         wborder_set(win, &vertical, &vertical, &horizontal, &horizontal,
                     &topLeft, &topRight, &bottomLeft, &bottomRight);
     }
     void Custom_Border_2(WINDOW *win)
     {
-        std::setlocale(LC_ALL, ""); // Ensure wide character support
-        // Define cchar_t variables for border characters
+        std::setlocale(LC_ALL, "");
         cchar_t vertical, horizontal, topLeft, topRight, bottomLeft, bottomRight;
-        // Set wide characters directly
         setcchar(&vertical, L"║", 0, 0, nullptr);
         setcchar(&horizontal, L"═", 0, 0, nullptr);
         setcchar(&topLeft, L"╔", 0, 0, nullptr);
@@ -100,6 +120,29 @@ public:
         // Draw the custom border
         wborder_set(win, &vertical, &vertical, &horizontal, &horizontal,
                     &topLeft, &topRight, &bottomLeft, &bottomRight);
+    }
+    void Custom_Blink_Border(WINDOW *win, bool up, bool down, bool left, bool right)
+    {
+        std::setlocale(LC_ALL, ""); // Enable wide character support
+
+        // Initialize cchar_t variables
+        cchar_t vertical_left, vertical_right, horizontal_up, horizontal_down, topLeft, topRight, bottomLeft, bottomRight;
+
+        // Set border components based on flags
+        setcchar(&vertical_right, L"║", right ? A_BLINK : 0, 0, nullptr);
+        setcchar(&vertical_left, L"║", left ? A_BLINK : 0, 0, nullptr);
+        setcchar(&horizontal_up, L"═", up ? A_BLINK : 0, 0, nullptr);
+        setcchar(&horizontal_down, L"═", down ? A_BLINK : 0, 0, nullptr);
+        setcchar(&topLeft, L"╔", up || left ? A_BLINK : 0, 0, nullptr);
+        setcchar(&topRight, L"╗", up || right ? A_BLINK : 0, 0, nullptr);
+        setcchar(&bottomLeft, L"╚", down || left ? A_BLINK : 0, 0, nullptr);
+        setcchar(&bottomRight, L"╝", down || right ? A_BLINK : 0, 0, nullptr);
+
+        // Draw the custom border
+        wborder_set(win, &vertical_left, &vertical_right, &horizontal_up, &horizontal_down,
+                    &topLeft, &topRight, &bottomLeft, &bottomRight);
+        // Refresh the window to display the changes
+        wrefresh(win);
     }
 };
 
@@ -148,7 +191,7 @@ public:
     bool is_enclosure(int coordinate_y, int coordinate_x);
     std::vector<std::pair<int, int>> find_inside_points();
     void fill_territory(const std::vector<std::pair<int, int>> &inside_points);
-    int check_valid_position(int coordinate_y, int coordinate_x);
+    bool check_valid_position(int coordinate_y, int coordinate_x);
 };
 
 class Select_Room_Window : public Window
@@ -200,4 +243,15 @@ public:
     void render_gameover();
 };
 
+struct GameContext
+{
+    Splix_Window *game_win;
+    Status_Window *stat_win;
+    std::pair<int, int> direction;
+    int coordinate_x, coordinate_y;
+    int acceleration_timer, cooldown_timer;
+    Mode mode;
+    useconds_t frame_time;
+    bool is_die;
+};
 #endif

@@ -13,145 +13,144 @@ int map[MAP_HEIGHT][MAP_WIDTH];
 Mode mode = Mode::NORMAL;
 int id = 19;
 
-int game_loop(Splix_Window *game_win, Status_Window *stat_win)
+bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 {
-    // Disable the cursor
-    curs_set(0);
+    nodelay(game_win->win, TRUE);
     keypad(game_win->win, TRUE);
-    nodelay(game_win->win, TRUE); // Non-blocking input
-    game_win->draw();
-    stat_win->draw();
-    // get map from server
-    for (int i = 0; i < MAP_HEIGHT; i++)
-    {
-        for (int j = 0; j < MAP_WIDTH; j++)
-        {
-            map[i][j] = 0;
-        }
-    }
-
-    // initial position(coordinates), receive from server
-    srand(time(NULL));
-    int coordinate_x = rand() % MAP_WIDTH, coordinate_y = rand() % MAP_HEIGHT;
-    map[coordinate_y][coordinate_x] = id;
-
-    // default direction
-    std::pair<int, int> direction = {0, 1}; // y and x
-
-    // create initial territory
-    game_win->create_initial_territory(coordinate_y, coordinate_x);
-    game_win->render_game(coordinate_y, coordinate_x);
-    stat_win->update_status(coordinate_y, coordinate_x, "NORMAL");
-
-    // gaming
-    int ch; // use int to store the character like key_up, key_down, etc.
-    mode = Mode::NORMAL;
-    useconds_t frame_time = speed; // 0.15 sec
+    setlocale(LC_ALL, "");
+    // Initialize context
+    std::pair<int, int> direction = {0, 1};
+    int coordinate_x = rand() % (MAP_WIDTH - 20);
+    int coordinate_y = rand() % (MAP_HEIGHT - 20);
     int acceleration_timer = acc_time;
     int cooldown_timer = 0;
-    for (;;)
-    {
+    mode = Mode::NORMAL;
+    int frame_time = speed;
 
-        if ((ch = wgetch(game_win->win)) != ERR)
+    game_win->draw();
+    game_win->create_initial_territory(coordinate_y, coordinate_x);
+    game_win->render_game(coordinate_y, coordinate_x);
+    stat_win->draw();
+    stat_win->update_status(coordinate_y, coordinate_x, "NORMAL");
+
+    // Start the ticker
+    GameTicker ticker_normal(10);
+    GameTicker ticker_fast(30);
+
+    while (true)
+    {
+        if ((mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
+            (mode == Mode::FAST && ticker_fast.is_tick_due()))
         {
-            flushinp(); // clear the input buffer
+            int ch = wgetch(game_win->win);
             std::pair<int, int> new_direction = direction;
-            switch (ch)
+            flushinp();
+            if (ch != ERR)
             {
-            case 'q':
-                wattroff(game_win->win, COLOR_PAIR(1) | A_BOLD);
-                game_win->exit_game(1);
-                return 0; // exit the function
-            case 'w':
-            case KEY_UP:
-                new_direction = {-1, 0};
-                break; // break means exit the switch, not the loop,which ignores the operation
-            case 's':
-            case KEY_DOWN:
-                new_direction = {1, 0};
-                break;
-            case 'a':
-            case KEY_LEFT:
-                new_direction = {0, -1};
-                break;
-            case 'd':
-            case KEY_RIGHT:
-                new_direction = {0, 1};
-                break;
-            case 'f':
-                if (mode == Mode::FAST)
+                // flushinp();
+                switch (ch)
                 {
-                    mode = Mode::NORMAL; // Resume game
-                    frame_time = speed;  // Reset to NORMAL speed
+                case 'q':
+                    wattroff(game_win->win, COLOR_PAIR(id) | A_BOLD);
+                    game_win->exit_game(1);
+                    return false;
+                case 'w':
+                case KEY_UP:
+                    new_direction = {-1, 0};
+                    break;
+                case 's':
+                case KEY_DOWN:
+                    new_direction = {1, 0};
+                    break;
+                case 'a':
+                case KEY_LEFT:
+                    new_direction = {0, -1};
+                    break;
+                case 'd':
+                case KEY_RIGHT:
+                    new_direction = {0, 1};
+                    break;
+                case 'f':
+                    if (mode == Mode::FAST)
+                    {
+                        mode = Mode::NORMAL;
+                        frame_time = speed;
+                    }
+                    else if (cooldown_timer == 0)
+                    {
+                        mode = Mode::FAST;
+                        frame_time = speed / 3;
+                        if (acceleration_timer == 0)
+                            acceleration_timer = acc_time;
+                    }
+                    break;
+                default:
+                    break;
                 }
-                else if (cooldown_timer == 0)
+                if (new_direction.first != -direction.first &&
+                    new_direction.second != -direction.second)
                 {
-                    mode = Mode::FAST;      // FAST mode
-                    frame_time = speed / 3; // FASTer speed: 0.05 seconds
+                    direction = new_direction;
+                }
+            }
+
+            // Handle timers
+            if (mode == Mode::FAST && acceleration_timer > 0)
+            {
+                acceleration_timer--; // Decrement timer
+                if (acceleration_timer == 0)
+                {
+                    mode = Mode::NORMAL;
+                    frame_time = speed;
+                    cooldown_timer = cool_time;
+                }
+            }
+            if (mode == Mode::NORMAL && acceleration_timer > 0 && acceleration_timer < acc_time)
+            {
+                acceleration_timer++;
+            }
+            else if (cooldown_timer > 0)
+            {
+                cooldown_timer--; // Decrement cooldown timer
+                if (cooldown_timer == 0)
+                {
                     acceleration_timer = acc_time;
                 }
-                break;
-            default:
-                break;
             }
-            if (new_direction.first != -direction.first && new_direction.second != -direction.second)
-            {
-                direction = new_direction;
-            }
-        }
-        // Handle acceleration timer
-        if (mode == Mode::FAST && acceleration_timer > 0)
-        {
-            acceleration_timer--; // Decrement timer
-            if (acceleration_timer == 0)
-            {
-                mode = Mode::NORMAL;
-                frame_time = speed;
-                cooldown_timer = cool_time;
-            }
-        }
-        if (mode == Mode::NORMAL && acceleration_timer > 0)
-        {
-            acceleration_timer++;
-        }
-        else if (cooldown_timer > 0)
-        {
-            cooldown_timer--; // Decrement cooldown timer
-            if (cooldown_timer == 0)
-            {
-                acceleration_timer = acc_time;
-            }
-        }
 
-        coordinate_y += direction.first;
-        coordinate_x += direction.second;
+            // Update position
+            coordinate_y += direction.first;
+            coordinate_x += direction.second;
+            // send to server
 
-        // check if die or not
-        if (!game_win->check_valid_position(coordinate_y, coordinate_x))
-            return 1;
-
-        // check the territory
-        if (map[coordinate_y][coordinate_x] == -id)
-        {
-            // if circled, else, moving on its own territory
-            if (game_win->is_enclosure(coordinate_y, coordinate_x))
+            // Check if the player dies from going out of bounds
+            if (!game_win->check_valid_position(coordinate_y, coordinate_x))
             {
-                // Find all inside points
-                auto inside_points = game_win->find_inside_points();
-
-                // Fill the enclosed area
-                game_win->fill_territory(inside_points);
+                return true;
             }
+
+            // Handle territory
+            if (map[coordinate_y][coordinate_x] == -id)
+            {
+                if (game_win->is_enclosure(coordinate_y, coordinate_x))
+                {
+                    auto inside_points = game_win->find_inside_points();
+                    game_win->fill_territory(inside_points);
+                }
+            }
+            else
+            {
+                map[coordinate_y][coordinate_x] = id;
+            }
+
+            // Render and update status
+            game_win->render_game(coordinate_y, coordinate_x);
+            stat_win->update_status(coordinate_y, coordinate_x,
+                                    mode == Mode::FAST ? "BURST" : "NORMAL");
+            stat_win->update_timer(acceleration_timer, cooldown_timer);
         }
-        else
-        {
-            map[coordinate_y][coordinate_x] = id;
-        }
-        game_win->render_game(coordinate_y, coordinate_x);
-        stat_win->update_status(coordinate_y, coordinate_x, mode == Mode::FAST ? "Burst" : "NORMAL");
-        stat_win->update_timer(acceleration_timer, cooldown_timer);
-        usleep(frame_time); // Sleep for 0.1sec, speed of the game
     }
+    return false;
 }
 
 int connect_to_server()
@@ -259,10 +258,11 @@ int main()
     init_pair(18, COLOR_RED, COLOR_WHITE);
     init_pair(19, COLOR_GRAY, -1);
     init_pair(20, COLOR_BLACK, COLOR_WHITE);
+
     GameStatus status = GameStatus::INITIAL;
 
 #ifndef DEBUG
-    int sockfd = connect_to_server();
+    int sockfd;
 #endif
     // windows
     Initial_Window init_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
@@ -295,6 +295,7 @@ int main()
             input_win.draw();
             input_win.get_user_input();
 #ifndef DEBUG
+            sockfd = connect_to_server();
             send_server_name(sockfd, input_win.name);
             room_info = receive_room_info(sockfd);
 #endif
@@ -308,6 +309,9 @@ int main()
             if (select_room_win.selected_room == room_info.size() + 1)
             {
                 status = GameStatus::INITIAL;
+#ifndef DEBUG
+                close(sockfd);
+#endif
                 break;
             }
 
@@ -371,7 +375,7 @@ int main()
             sleep(3);
             werase(gameover_win.win);
             wrefresh(gameover_win.win);
-            status = GameStatus::INITIAL;
+            status = GameStatus::INSIDE_ROOM;
             break;
         }
         // after game over

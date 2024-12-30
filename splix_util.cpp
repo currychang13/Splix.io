@@ -26,9 +26,9 @@ void Initial_Window::Rendertitle()
 // Room_Window functions
 void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
 {
-    nodelay(win, TRUE); 
+    nodelay(win, TRUE);
     keypad(win, TRUE);
-    curs_set(0);        
+    curs_set(0);
 
     if (room_info.size() == 0)
     {
@@ -168,9 +168,9 @@ void Create_Room_Window::Render_create_room()
 // CR_Input_Window functions
 void CR_Input_Window::get_user_input()
 {
-    noecho(); 
+    noecho();
     keypad(win, TRUE);
-    curs_set(1);
+    //curs_set(1);
     wmove(win, 1, 1);
     int ch, i = 0, cursor_position = 1;
     int warning = 0;
@@ -293,7 +293,7 @@ void Room_Window::inside_room(std::vector<std::string> member_info, int room_id)
 {
     nodelay(win, TRUE); // Non-blocking input
     keypad(win, TRUE);
-    curs_set(0); 
+    curs_set(0);
     // Display the room ID
     mvwprintw(win, 13, (width - 10) / 2, "Room ID: %d", room_id);
 
@@ -362,6 +362,7 @@ void Room_Window::inside_room(std::vector<std::string> member_info, int room_id)
         wrefresh(win);
     }
 }
+
 // Input_Window functions
 void Input_Window::get_user_input()
 {
@@ -444,12 +445,10 @@ void Input_Window::get_user_input()
 // Splix_Window functions
 void Splix_Window::render_game(int coordinate_y, int coordinate_x)
 {
-    int win_rows, win_cols;
-    getmaxyx(win, win_rows, win_cols);
 
     // Determine half the window size
-    int half_rows = win_rows / 2;
-    int half_cols = win_cols / 2;
+    int half_rows = height / 2;
+    int half_cols = width / 2;
 
     // Calculate the top-left corner of the rendering area, relative to the window
     int start_y = coordinate_y - half_rows;
@@ -460,30 +459,29 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
         start_y = 0;
     if (start_x < 0)
         start_x = 0;
-    if (start_y + win_rows > MAP_HEIGHT)
-        start_y = MAP_HEIGHT - win_rows;
-    if (start_x + win_cols > MAP_WIDTH)
-        start_x = MAP_WIDTH - win_cols;
-
-    // Change border color if the character is near the map's edge
-    bool near_edge = (coordinate_y <= half_rows || coordinate_y >= MAP_HEIGHT - half_rows ||
-                      coordinate_x <= half_cols || coordinate_x >= MAP_WIDTH - half_cols);
-
-    // Set border color
-    if (near_edge)
-    {
-        wattron(win, A_BLINK); // Red for edge proximity
-        box(win, 0, 0);
-        wattroff(win, A_BLINK); // Turn off border color
-        wrefresh(win);
-    }
-
+    if (start_y + height > MAP_HEIGHT)
+        start_y = MAP_HEIGHT - height;
+    if (start_x + width > MAP_WIDTH)
+        start_x = MAP_WIDTH - width;
+    bool up = false;
+    bool down = false;
+    bool left = false;
+    bool right = false;
+    if (coordinate_y <= half_rows)
+        up = true;
+    if (coordinate_y >= MAP_HEIGHT - half_rows)
+        down = true;
+    if (coordinate_x <= half_cols)
+        left = true;
+    if (coordinate_x >= MAP_WIDTH - half_cols)
+        right = true;
+    Custom_Blink_Border(win, up, down, left, right);
     // Clear the window and redraw the border
     setlocale(LC_ALL, "");
     // Render the visible portion of the map
-    for (int i = 0; i < win_rows - 2; i++)
+    for (int i = 0; i < height - 2; i++)
     {
-        for (int j = 0; j < win_cols - 2; j++)
+        for (int j = 0; j < width - 2; j++)
         {
             int map_y = start_y + i;
             int map_x = start_x + j;
@@ -500,32 +498,26 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
                 symbol = L".";                // Empty space
                 wattron(win, COLOR_PAIR(19)); // Gray
             }
-            else if (map[map_y][map_x] == -id)
+            else if (map[map_y][map_x] < 0)
             {
                 symbol = L"■"; // Filled territory
-                wattron(win, COLOR_PAIR(id));
+                wattron(win, COLOR_PAIR(map[map_y][map_x] * -1));
             }
-            else if (map[map_y][map_x] == id)
+            else if (map[map_y][map_x] > 0)
             {
                 if (mode == Mode::FAST)
                     symbol = L"★"; // Player trail in FAST mode
                 else
                     symbol = L"▪"; // Player trail in NORMAL mode
-                wattron(win, COLOR_PAIR(id));
+                wattron(win, COLOR_PAIR(map[map_y][map_x]));
             }
-            else
-            {
-                symbol = L"?"; // Undefined
-                wattron(win, COLOR_PAIR(3));
-            }
-
             // Render the character or cell
             if (map_y == coordinate_y && map_x == coordinate_x)
             {
                 symbol = L"◯"; // Player
             }
             mvwaddwstr(win, i + 1, j + 1, symbol);
-            wattroff(win, COLOR_PAIR(3) | COLOR_PAIR(id));
+            wattroff(win, COLOR_PAIR(id));
         }
     }
     // Refresh the window after rendering
@@ -685,7 +677,7 @@ void Splix_Window::fill_territory(const std::vector<std::pair<int, int>> &inside
         map[y][x] = -id; // Mark as filled territory
     }
 }
-int Splix_Window::check_valid_position(int coordinate_y, int coordinate_x)
+bool Splix_Window::check_valid_position(int coordinate_y, int coordinate_x)
 {
     // three cases
     //  1. empty territory or other player's territory
@@ -696,9 +688,9 @@ int Splix_Window::check_valid_position(int coordinate_y, int coordinate_x)
     if (coordinate_y < 1 || coordinate_y >= MAP_HEIGHT || coordinate_x < 1 || coordinate_x >= MAP_WIDTH || map[coordinate_y][coordinate_x] == id)
     {
         exit_game(0); // die
-        return 0;
+        return false;
     }
-    return 1;
+    return true;
 }
 void Splix_Window::exit_game(int flag)
 {
@@ -808,7 +800,6 @@ void Status_Window::update_timer(int acceleration_timer, int cooldown_timer)
 
     mvwprintw(win, 7, width - 2, "]");
     wattroff(win, COLOR_PAIR(3) | A_BOLD);
-
     wrefresh(win);
 }
 
