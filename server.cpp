@@ -51,7 +51,11 @@ struct ClientInfo
     std::string username;
     ClientState state;
     int roomId;
-    struct sockaddr_in clientAddr; // Add this line
+    int udpFd;                  // UDP socket file descriptor
+    struct sockaddr_in clientAddr; 
+    bool udpAddrSet;            // Flag to indicate if UDP address is set
+
+    ClientInfo() : fd(-1), roomId(-1), udpFd(-1), udpAddrSet(false) {}
 };
 
 // Room Structure
@@ -128,6 +132,7 @@ public:
     std::vector<std::pair<int, int>> findInsidePoints(int roomId);
     void fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId);
     void handlePlayerLogic(int roomId, int clientFd, const std::string &message);
+    void handlePlayerDeath(int roomId, int clientFd);
     void handlePlayerDisconnection(int roomId, int clientFd);
     Server *server; // Pointer back to Server
     Player player;
@@ -262,10 +267,11 @@ void *playerThreadFunction(void *args)
     std::cout << "UDP connection established for Client FD " << Playerargs->clientFd << " on port " << assignedPort << "\n";
     cliaddr = Playerargs->gameManager->server->clients[Playerargs->roomId].clientAddr;
     std::string position = std::to_string(Playerargs->gameManager->player.y) + std::to_string(Playerargs->gameManager->player.x);
-    sendto(udpSocket, position.c_str(), position.length(), 0, (const struct sockaddr *)&cliaddr, sizeof(cliaddr));
+    sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, sizeof(cliaddr));
     while (true)
     {
-        ssize_t bytesRead = read(Playerargs->clientFd, buffer, sizeof(buffer) - 1);
+        socklen_t clilen = sizeof(cliaddr);
+        ssize_t bytesRead = recvfrom(Playerargs->clientFd, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&cliaddr, &clilen);
         if (bytesRead <= 0)
         {
             if (bytesRead < 0)
@@ -378,18 +384,122 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
 {
     pthread_mutex_lock(&server->getGameMutex());
 
-    // Parse and handle the message
-    // Example: Move command "MOVE UP", "MOVE DOWN", etc.
-    if (message.find("MOVE") == 0)
-    {
-
-        auto &gameState = gameStates[roomId];
-        auto it = gameState.players.find(clientFd);
-        if (it != gameState.players.end() && it->second.isAlive)
-        {
-        }
+    std::istringstream iss(message);
+    int y, x;
+    auto &gameState = gameStates[roomId];
+    auto playerIt = gameState.players.find(clientFd);
+    if (playerIt == gameState.players.end()) {
+        std::cerr << "Player not found for client FD " << clientFd << "\n";
+        std::string errorMsg = "ERROR Player not found\n";
+        write(clientFd, errorMsg.c_str(), errorMsg.length());
+        pthread_mutex_unlock(&server->getGameMutex());
+        return;
     }
-    // Handle other message types as needed
+
+    int playerId = playerIt->second.playerId;
+
+    // Check if the cell is already occupied
+   if (gameState.map[y][x] != 0) {
+        int occupantPlayerId = gameState.map[y][x];
+        
+        // Check if the occupant is another player
+        if (occupantPlayerId != playerId) {
+            // Find the clientFd of the occupant player
+            int occupantFd = -1;
+            for (const auto &[fd, player] : gameState.players) {
+                if (player.playerId == occupantPlayerId) {
+                    occupantFd = fd;
+                    break;
+                }
+            }
+
+            if (occupantFd != -1) {
+                // Send "DIE" message to the occupant player
+                std::string dieMsg = "DIE\n";
+                if (write(occupantFd, dieMsg.c_str(), dieMsg.length()) < 0) {
+                    perror("Failed to send DIE message to occupant player");
+                }
+
+                // Handle occupant player's death without disconnecting TCP
+                handlePlayerDeath(roomId, occupantFd);
+                std::cout << "Player ID " << occupantPlayerId << " (Client FD " << occupantFd 
+                          << ") has been killed by Player ID " << playerId << "\n";
+            } else {
+                std::cerr << "Occupant player with ID " << occupantPlayerId 
+                          << " not found in Room " << roomId << "\n";
+            }
+        }
+
+        if (gameState.map[y][x] == -playerId)
+            {
+                if (isEnclosure(y, x, roomId))
+                {
+                    auto inside_points = findInsidePoints(roomId);
+                    fillTerritory(inside_points, roomId);
+                }
+            }
+            else
+            {
+                gameState.map[y][x] = playerId;
+            }
+    }
+
+    // Update the map with the player's ID
+    gameState.map[y][x] = playerId;
+
+    pthread_mutex_unlock(&server->getGameMutex());
+}
+
+void GameManager::handlePlayerDeath(int roomId, int clientFd)
+{
+    // Ensure thread safety
+    pthread_mutex_lock(&server->getGameMutex());
+
+    auto &gameState = gameStates[roomId];
+    auto playerIt = gameState.players.find(clientFd);
+    if (playerIt == gameState.players.end()) {
+        std::cerr << "Player not found for client FD " << clientFd << " while handling death.\n";
+        pthread_mutex_unlock(&server->getGameMutex());
+        return;
+    }
+
+    // Retrieve player information
+    int playerId = playerIt->second.playerId;
+
+    // Clear the player's position from the map
+    gameState.map[playerIt->second.y][playerIt->second.x] = 0;
+
+        // Iterate through the entire map to clear all cells associated with this player
+        for (int y = 0; y < MAP_HEIGHT; ++y)
+        {
+            for (int x = 0; x < MAP_WIDTH; ++x)
+            {
+                if (gameState.map[y][x] == playerId || gameState.map[y][x] == -playerId)
+                {
+                    gameState.map[y][x] = 0;
+                }
+            }
+        }
+
+    // Reset UDP connection information
+    server->clients[clientFd].udpFd = -1;
+    server->clients[clientFd].udpAddrSet = false;
+    memset(&server->clients[clientFd].clientAddr, 0, sizeof(server->clients[clientFd].clientAddr));
+
+    // Set client state to WAITING_START
+    server->clients[clientFd].state = ClientState::WAITING_START;
+
+    std::cout << "Player ID " << playerId << " (Client FD " << clientFd 
+              << ") has been reset to WAITING_START.\n";
+
+    // Optionally, notify the player about their death
+    std::string deadMsg = "YOU_DIED\n";
+    if (write(clientFd, deadMsg.c_str(), deadMsg.length()) < 0) {
+        perror("Failed to send YOU_DIED message to client");
+    }
+
+    // Optionally, reset player position or other attributes
+    // ...
 
     pthread_mutex_unlock(&server->getGameMutex());
 }
@@ -422,6 +532,7 @@ void GameManager::handlePlayerDisconnection(int roomId, int clientFd)
 
 bool GameManager::isEnclosure(int y, int x, int roomId)
 {
+    pthread_mutex_lock(&server->getGameMutex());
     // BFS to determine if the trail forms a closed boundary
     std::vector<std::vector<bool>> visited(MAP_HEIGHT, std::vector<bool>(MAP_WIDTH, false));
     std::queue<std::pair<int, int>> q;
@@ -467,9 +578,11 @@ bool GameManager::isEnclosure(int y, int x, int roomId)
 
     // If the component touches the border, it's not an enclosure
     return !touches_border;
+    pthread_mutex_unlock(&server->getGameMutex());
 }
 std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId)
 {
+    pthread_mutex_lock(&server->getGameMutex());
     std::vector<std::vector<bool>> visited(MAP_HEIGHT, std::vector<bool>(MAP_WIDTH, false));
     std::queue<std::pair<int, int>> q;
 
@@ -544,13 +657,16 @@ std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId)
     }
 
     return inside_points;
+    pthread_mutex_unlock(&server->getGameMutex());
 }
 void GameManager::fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId)
 {
+    pthread_mutex_lock(&server->getGameMutex());
     for (const auto &[y, x] : inside_points)
     {
         gameStates[roomId].map[y][x] = -player.playerId; // Mark as filled territory
     }
+    pthread_mutex_unlock(&server->getGameMutex());
 }
 
 void GameManager::updateAllPlayers(int roomId)

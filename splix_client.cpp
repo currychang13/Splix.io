@@ -1,6 +1,5 @@
 #include "splix_header.h"
 
-// #define DEBUG
 // colors
 #define COLOR_CORAL 15
 #define COLOR_PURPLE 16
@@ -95,7 +94,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
             (player.mode == Mode::FAST && ticker_fast.is_tick_due()))
         {
-            //update_alter_map();
+            // update_alter_map();
             int ch = wgetch(game_win->win);
             std::pair<int, int> new_direction = player.direction;
             flushinp();
