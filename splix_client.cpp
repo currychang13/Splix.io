@@ -1,6 +1,5 @@
 #include "splix_header.h"
 
-// #define DEBUG
 // colors
 #define COLOR_CORAL 15
 #define COLOR_PURPLE 16
