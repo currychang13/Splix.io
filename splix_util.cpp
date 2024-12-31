@@ -39,7 +39,7 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
     // Display all room options and the option to create a new room
     for (int i = 0; i < (int)room_info.size(); i++)
     {
-        std::string room_str = "Room ID " + std::to_string(room_info[i].first) + ": " + std::to_string(room_info[i].second) + " players in the room";
+        std::string room_str = "Room " + std::to_string(room_info[i].first) + ": " + std::to_string(room_info[i].second) + " players in the room";
         mvwprintw(win, 2 * i + 13, (width - room_str.length()) / 2, "%s", room_str.c_str());
     }
     mvwprintw(win, 2 * room_info.size() + 13, (width - 18) / 2, "Create a new room");
@@ -48,11 +48,10 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
     bool selected = false;
     selected_room = 0;
 
-    // Highlight the initial selection
     if (room_info.size() > 0)
     {
         wattron(win, A_REVERSE);
-        std::string initial_str = "Room ID " + std::to_string(room_info[0].first) + ": " + std::to_string(room_info[0].second) + " players in the room";
+        std::string initial_str = "Room " + std::to_string(room_info[0].first) + ": " + std::to_string(room_info[0].second) + " players in the room";
         mvwprintw(win, 13, (width - initial_str.length()) / 2, "%s", initial_str.c_str());
         wattroff(win, A_REVERSE);
         wrefresh(win);
@@ -71,7 +70,7 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
         // Remove highlighting from the currently selected room
         if (selected_room < room_info.size())
         {
-            std::string current_str = "Room ID " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players in the room";
+            std::string current_str = "Room " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players in the room";
             mvwprintw(win, 2 * selected_room + 13, (width - current_str.length()) / 2, "%s", current_str.c_str());
         }
         else if (selected_room == room_info.size())
@@ -100,7 +99,7 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
         if (selected_room < room_info.size())
         {
             wattron(win, A_REVERSE);
-            std::string new_str = "Room ID " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players in the room";
+            std::string new_str = "Room " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players in the room";
             mvwprintw(win, 2 * selected_room + 13, (width - new_str.length()) / 2, "%s", new_str.c_str());
             wattroff(win, A_REVERSE);
         }
@@ -295,69 +294,91 @@ void Room_Window::inside_room(std::vector<std::string> member_info, int room_id)
     nodelay(win, TRUE); // Non-blocking input
     keypad(win, TRUE);
     curs_set(0);
-    // Display the room ID
-    mvwprintw(win, 13, (width - 10) / 2, "Room ID: %d", room_id);
 
-    // Display the room members
-    for (int i = 0; i < (int)member_info.size(); i++)
+    // Calculate player display configuration
+    int num_players = member_info.size();
+    int half_players = (num_players + 1) / 2; // First line has half (round up)
+    int row_start = 13;
+    int col_start_first = width / 4;
+    int col_start_second = 2 * width / 4 + 6;
+
+    // Display Room ID
+    std::string room_id_str = "Room " + std::to_string(room_id);
+    int RM_ID_HEIGHT = 3;
+    int RM_ID_WIDTH = room_id_str.length() + 2;
+    Room_ID_Window Room_id_win(RM_ID_HEIGHT, RM_ID_WIDTH, 15, (COLS - RM_ID_WIDTH) / 2);
+    mvwprintw(Room_id_win.win, 1, 1, "%s", room_id_str.c_str());
+    Room_id_win.draw();
+    wrefresh(Room_id_win.win);
+
+    row_start += 2;
+
+    // Display the players split into two lines
+    for (int i = 0; i < num_players; ++i)
     {
-        std::string current_str = "Player " + std::to_string(i + 1) + ": " + member_info[i];
-        mvwprintw(win, 2 * i + 17, (width - current_str.length()) / 2, "%s", current_str.c_str());
+        std::string player_str = "Player " + std::to_string(i + 1) + ": " + member_info[i];
+        mvwprintw(win, row_start, (i % 2 == 0) ? col_start_first : col_start_second, "%s", player_str.c_str());
+        if (i % 2 == 1)
+        {
+            row_start += 2;
+        }
     }
-
-    // Display the option to Enter the game
-    mvwprintw(win, 2 * member_info.size() + 17, (width - 12) / 2, "Enter Game");
-    mvwprintw(win, 2 * (member_info.size() + 1) + 17, (width - 23) / 2, "Back to Room Selection");
+    row_start += 2; // Move down for the next line
 
     // Highlight the initial selection
     wattron(win, A_REVERSE);
-    std::string initial_str = "Enter Game";
-    mvwprintw(win, 2 * member_info.size() + 17, (width - 12) / 2, "%s", initial_str.c_str());
+    mvwprintw(win, row_start, col_start_first + 12, "Enter Game");
     wattroff(win, A_REVERSE);
+    mvwprintw(win, row_start, col_start_second - 4, "Return to Room Selection");
     wrefresh(win);
 
-    // Select a room member to kick
-    selected_object = (int)member_info.size();
+    // Display the chatroom
+    mvwprintw(win, row_start + 2, col_start_first, "Chatroom:");
+
+    wrefresh(win);
+
+    // Handle user selection
+    selected_object = num_players; // Start with "Enter Game" selected
     bool selected = false;
 
     while (!selected)
     {
         int ch = wgetch(win);
+        // Remove highlighting from the currently selected option
+        if (selected_object == num_players)
+        {
+            mvwprintw(win, row_start, col_start_first + 12, "Enter Game");
+        }
+        else if (selected_object == num_players + 1)
+        {
+            mvwprintw(win, row_start, col_start_second - 4, "Return to Room Selection");
+        }
 
-        // Remove highlighting from the currently selected member
-        if (selected_object == member_info.size())
+        // Update selection based on user input
+        if (ch == KEY_LEFT)
         {
-            mvwprintw(win, 2 * member_info.size() + 17, (width - 12) / 2, "Enter Game");
+            selected_object = (selected_object - 1 >= num_players) ? selected_object - 1 : num_players;
         }
-        else
+        else if (ch == KEY_RIGHT)
         {
-            mvwprintw(win, 2 * (member_info.size() + 1) + 17, (width - 23) / 2, "Back to Room Selection");
-        }
-
-        if (ch == KEY_UP)
-        {
-            selected_object = (selected_object - 1 >= (int)member_info.size()) ? selected_object - 1 : (int)member_info.size();
-        }
-        else if (ch == KEY_DOWN)
-        {
-            selected_object = (selected_object + 1 <= (int)member_info.size() + 1) ? selected_object + 1 : member_info.size() + 1;
+            selected_object = (selected_object + 1 <= num_players + 1) ? selected_object + 1 : num_players + 1;
         }
         else if (ch == '\n')
         {
-            selected = true;
+            selected = true; // Confirm selection
         }
 
-        // Highlight the newly selected member
-        if (selected_object == member_info.size())
+        // Highlight the newly selected option
+        if (selected_object == num_players)
         {
             wattron(win, A_REVERSE);
-            mvwprintw(win, 2 * member_info.size() + 17, (width - 12) / 2, "Enter Game");
+            mvwprintw(win, row_start, col_start_first + 12, "Enter Game");
             wattroff(win, A_REVERSE);
         }
-        else
+        else if (selected_object == num_players + 1)
         {
             wattron(win, A_REVERSE);
-            mvwprintw(win, 2 * (member_info.size() + 1) + 17, (width - 23) / 2, "Back to Room Selection");
+            mvwprintw(win, row_start, col_start_second - 4, "Return to Room Selection");
             wattroff(win, A_REVERSE);
         }
         wrefresh(win);
@@ -515,7 +536,6 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode)
         }
     }
 }
-
 void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
 {
     // create initial territory

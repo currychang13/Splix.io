@@ -254,6 +254,12 @@ public:
     void Render_room();
     void inside_room(std::vector<std::string> member_info, int room_id);
 };
+class Room_ID_Window : public Window
+{
+public:
+    Room_ID_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
+};
+
 class Gameover_Window : public Window
 {
 public:

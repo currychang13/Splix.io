@@ -1,5 +1,5 @@
 #include "splix_header.h"
-
+#define DEBUG
 // colors
 #define COLOR_CORAL 15
 #define COLOR_PURPLE 16
@@ -282,6 +282,14 @@ int main()
         room_info.push_back({15, 16});
         member_info.push_back("Mace6728");
         member_info.push_back("Droplet5269");
+        member_info.push_back("humphrey");
+        member_info.push_back("Cubeman");
+        member_info.push_back("Mace6728");
+        member_info.push_back("Droplet5269");
+        member_info.push_back("humphrey");
+        member_info.push_back("Cubeman");
+        member_info.push_back("Mace6728");
+        member_info.push_back("Droplet5269");
 #endif
         switch (status)
         {
@@ -326,16 +334,19 @@ int main()
                 tcp.send_server_room_id(atoi(cr_input_win.id)); // send id to server, if room exist, join
 #endif
             }
-#ifndef DEBUG
+
             else
             {
+                player.room_id = room_info[select_room_win.selected_room].first;
+
+#ifndef DEBUG
                 tcp.send_server_room_id(room_info[room_win.selected_object].first);
-            }
 #endif
+            }
+
             status = GameStatus::INSIDE_ROOM;
             break;
         case GameStatus::INSIDE_ROOM:
-            // inside room
             room_win.draw();
             room_win.Render_room();
 #ifndef DEBUG
