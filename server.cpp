@@ -51,9 +51,9 @@ struct ClientInfo
     std::string username;
     ClientState state;
     int roomId;
-    int udpFd;                  // UDP socket file descriptor
-    struct sockaddr_in clientAddr; 
-    bool udpAddrSet;            // Flag to indicate if UDP address is set
+    int udpFd; // UDP socket file descriptor
+    struct sockaddr_in clientAddr;
+    bool udpAddrSet; // Flag to indicate if UDP address is set
 
     ClientInfo() : fd(-1), roomId(-1), udpFd(-1), udpAddrSet(false) {}
 };
@@ -199,6 +199,29 @@ void Server::joinRoom(int roomId, int clientFd, Server &server)
         {
             perror("write error in joinRoom");
         }
+    }
+    else
+    {
+        // Room does not exist. Create a new room with the given roomId.
+        Room newRoom;
+
+        // Add the client to the new room
+        newRoom.clientFd.push_back(clientFd);
+        newRoom.usernames.push_back(clients[clientFd].username);
+
+        // Insert the new room into the rooms map
+        rooms.emplace(roomId, newRoom);
+
+        // Update the client's roomId
+        clients[clientFd].roomId = roomId;
+        std::string name = clients[clientFd].username;
+
+        ssize_t bytesSent = write(clientFd, name.c_str(), name.length());
+        if (bytesSent < 0)
+        {
+            perror("write error in joinRoom");
+        }
+        std::cout << "Client FD " << clientFd << " created new room " << roomId << std::endl;
     }
 }
 
@@ -388,7 +411,8 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
     int y, x;
     auto &gameState = gameStates[roomId];
     auto playerIt = gameState.players.find(clientFd);
-    if (playerIt == gameState.players.end()) {
+    if (playerIt == gameState.players.end())
+    {
         std::cerr << "Player not found for client FD " << clientFd << "\n";
         std::string errorMsg = "ERROR Player not found\n";
         write(clientFd, errorMsg.c_str(), errorMsg.length());
@@ -399,49 +423,57 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
     int playerId = playerIt->second.playerId;
 
     // Check if the cell is already occupied
-   if (gameState.map[y][x] != 0) {
+    if (gameState.map[y][x] != 0)
+    {
         int occupantPlayerId = gameState.map[y][x];
-        
+
         // Check if the occupant is another player
-        if (occupantPlayerId != playerId) {
+        if (occupantPlayerId != playerId)
+        {
             // Find the clientFd of the occupant player
             int occupantFd = -1;
-            for (const auto &[fd, player] : gameState.players) {
-                if (player.playerId == occupantPlayerId) {
+            for (const auto &[fd, player] : gameState.players)
+            {
+                if (player.playerId == occupantPlayerId)
+                {
                     occupantFd = fd;
                     break;
                 }
             }
 
-            if (occupantFd != -1) {
+            if (occupantFd != -1)
+            {
                 // Send "DIE" message to the occupant player
                 std::string dieMsg = "DIE\n";
-                if (write(occupantFd, dieMsg.c_str(), dieMsg.length()) < 0) {
+                if (write(occupantFd, dieMsg.c_str(), dieMsg.length()) < 0)
+                {
                     perror("Failed to send DIE message to occupant player");
                 }
 
                 // Handle occupant player's death without disconnecting TCP
                 handlePlayerDeath(roomId, occupantFd);
-                std::cout << "Player ID " << occupantPlayerId << " (Client FD " << occupantFd 
+                std::cout << "Player ID " << occupantPlayerId << " (Client FD " << occupantFd
                           << ") has been killed by Player ID " << playerId << "\n";
-            } else {
-                std::cerr << "Occupant player with ID " << occupantPlayerId 
+            }
+            else
+            {
+                std::cerr << "Occupant player with ID " << occupantPlayerId
                           << " not found in Room " << roomId << "\n";
             }
         }
 
         if (gameState.map[y][x] == -playerId)
+        {
+            if (isEnclosure(y, x, roomId))
             {
-                if (isEnclosure(y, x, roomId))
-                {
-                    auto inside_points = findInsidePoints(roomId);
-                    fillTerritory(inside_points, roomId);
-                }
+                auto inside_points = findInsidePoints(roomId);
+                fillTerritory(inside_points, roomId);
             }
-            else
-            {
-                gameState.map[y][x] = playerId;
-            }
+        }
+        else
+        {
+            gameState.map[y][x] = playerId;
+        }
     }
 
     // Update the map with the player's ID
@@ -457,7 +489,8 @@ void GameManager::handlePlayerDeath(int roomId, int clientFd)
 
     auto &gameState = gameStates[roomId];
     auto playerIt = gameState.players.find(clientFd);
-    if (playerIt == gameState.players.end()) {
+    if (playerIt == gameState.players.end())
+    {
         std::cerr << "Player not found for client FD " << clientFd << " while handling death.\n";
         pthread_mutex_unlock(&server->getGameMutex());
         return;
@@ -469,17 +502,17 @@ void GameManager::handlePlayerDeath(int roomId, int clientFd)
     // Clear the player's position from the map
     gameState.map[playerIt->second.y][playerIt->second.x] = 0;
 
-        // Iterate through the entire map to clear all cells associated with this player
-        for (int y = 0; y < MAP_HEIGHT; ++y)
+    // Iterate through the entire map to clear all cells associated with this player
+    for (int y = 0; y < MAP_HEIGHT; ++y)
+    {
+        for (int x = 0; x < MAP_WIDTH; ++x)
         {
-            for (int x = 0; x < MAP_WIDTH; ++x)
+            if (gameState.map[y][x] == playerId || gameState.map[y][x] == -playerId)
             {
-                if (gameState.map[y][x] == playerId || gameState.map[y][x] == -playerId)
-                {
-                    gameState.map[y][x] = 0;
-                }
+                gameState.map[y][x] = 0;
             }
         }
+    }
 
     // Reset UDP connection information
     server->clients[clientFd].udpFd = -1;
@@ -489,12 +522,13 @@ void GameManager::handlePlayerDeath(int roomId, int clientFd)
     // Set client state to WAITING_START
     server->clients[clientFd].state = ClientState::WAITING_START;
 
-    std::cout << "Player ID " << playerId << " (Client FD " << clientFd 
+    std::cout << "Player ID " << playerId << " (Client FD " << clientFd
               << ") has been reset to WAITING_START.\n";
 
     // Optionally, notify the player about their death
     std::string deadMsg = "YOU_DIED\n";
-    if (write(clientFd, deadMsg.c_str(), deadMsg.length()) < 0) {
+    if (write(clientFd, deadMsg.c_str(), deadMsg.length()) < 0)
+    {
         perror("Failed to send YOU_DIED message to client");
     }
 
@@ -577,8 +611,8 @@ bool GameManager::isEnclosure(int y, int x, int roomId)
     }
 
     // If the component touches the border, it's not an enclosure
-    return !touches_border;
     pthread_mutex_unlock(&server->getGameMutex());
+    return !touches_border;
 }
 std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId)
 {
@@ -656,8 +690,8 @@ std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId)
         }
     }
 
-    return inside_points;
     pthread_mutex_unlock(&server->getGameMutex());
+    return inside_points;
 }
 void GameManager::fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId)
 {
@@ -842,7 +876,6 @@ void Server::handleNewConnection()
         return;
     }
 
-
     // Initialize ClientInfo with state WAITING_USERNAME
     ClientInfo ci;
     ci.fd = connfd;
@@ -877,6 +910,7 @@ void Server::processMessage(int clientFd)
 {
     char recvline[MAXLINE];
     ssize_t n = read(clientFd, recvline, MAXLINE - 1);
+    std::cout << recvline << "\n";
     if (n <= 0)
     {
         // Handle client disconnect
@@ -956,8 +990,34 @@ void Server::handleStartCommand(int clientFd, const std::string &message)
         // Update client's state back to ROOM_SELECTION
         clients[clientFd].state = ClientState::ROOM_SELECTION;
 
-        // Send room information to the client
-        sendRoomInfo(clientFd, *this);
+        // Retrieve the room ID the client is currently in
+        int roomId = clients[clientFd].roomId;
+
+        // Check if the room exists
+        auto roomIt = rooms.find(roomId);
+        if (roomIt != rooms.end())
+        {
+            // Remove the client from the room's client list
+            roomIt->second.clientFd.erase(
+                std::remove(roomIt->second.clientFd.begin(), roomIt->second.clientFd.end(), clientFd),
+                roomIt->second.clientFd.end());
+
+            // Remove the client's username from the room's username list
+            roomIt->second.usernames.erase(
+                std::remove(roomIt->second.usernames.begin(), roomIt->second.usernames.end(), clients[clientFd].username),
+                roomIt->second.usernames.end());
+
+            std::cout << "Client FD " << clientFd << " left Room " << roomId << std::endl;
+
+            // If the room is now empty, erase it from the rooms map
+            if (roomIt->second.clientFd.empty())
+            {
+                rooms.erase(roomIt);
+                std::cout << "Room " << roomId << " has been cleared as it has no more clients.\n";
+            }
+            // Send room information to the client
+            sendRoomInfo(clientFd, *this);
+        }
         return;
     }
 
