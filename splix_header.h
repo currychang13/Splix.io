@@ -261,15 +261,19 @@ public:
     Room_ID_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
 };
 
+class Chat_Window : public Window
+{
+public:
+    Chat_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
+    
+};
+
 class Gameover_Window : public Window
 {
 public:
     Gameover_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void render_gameover();
 };
-
-
-
 
 class UdpContent
 {
@@ -291,8 +295,8 @@ public:
     void send_server_name(char *name);
     void send_server_room_id(int room_id);
     void send_return_to_room_selection();
-    std::vector<std::pair<int, int>> receive_room_info();
-    std::vector<std::string> receive_member_info();
+    void receive_room_info(std::vector<std::pair<int, int>> &room_info);
+    void receive_member_info(std::vector<std::string> &member_info);
 };
 
 #endif

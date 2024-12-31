@@ -309,7 +309,7 @@ int main()
             select_room_win.draw();
             select_room_win.Render_select_room();
 #ifndef DEBUG
-            room_info = tcp.receive_room_info();
+            tcp.receive_room_info(room_info);
 #endif
             select_room_win.select_room(room_info);
             // return to lobby
@@ -330,16 +330,15 @@ int main()
                 cr_input_win.get_user_input();
                 player.room_id = atoi(cr_input_win.id);
 #ifndef DEBUG
-                tcp.send_server_room_id(atoi(cr_input_win.id)); // send id to server, if room exist, join
+                tcp.send_server_room_id(player.room_id); // send id to server, if room exist, join
 #endif
             }
 
             else
             {
                 player.room_id = room_info[select_room_win.selected_room].first;
-
 #ifndef DEBUG
-                tcp.send_server_room_id(room_info[room_win.selected_object].first);
+                tcp.send_server_room_id(room_info[select_win.selected_room].first);
 #endif
             }
 
@@ -349,7 +348,7 @@ int main()
             room_win.draw();
             room_win.Render_room();
 #ifndef DEBUG
-            member_info = tcp.receive_member_info(); // thread
+            tcp.receive_member_info(member_info); // thread
 #endif
             room_win.inside_room(member_info, player.room_id);
             if (room_win.selected_object == member_info.size())

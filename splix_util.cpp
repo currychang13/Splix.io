@@ -301,7 +301,7 @@ void Room_Window::inside_room(std::vector<std::string> member_info, int room_id)
     int num_players = member_info.size();
     int half_players = (num_players + 1) / 2; // First line has half (round up)
     int row_start = 13;
-    int col_start_first = width / 4;
+    int col_start_first = width / 4 + 1;
     int col_start_second = 2 * width / 4 + 6;
 
     // Display Room ID
@@ -910,12 +910,11 @@ void TcpContent::send_server_room_id(int room_id)
     room_str[strlen(room_str)] = '\0';
     write(sockfd, room_str, strlen(room_str));
 }
-std::vector<std::pair<int, int>> TcpContent::receive_room_info()
+void TcpContent::receive_room_info(std::vector<std::pair<int, int>> &room_info)
 {
     // Receive room info from server
     char room_number[100] = "";
     char room_str[100] = "";
-    std::vector<std::pair<int, int>> room_info;
     read(sockfd, room_number, sizeof(room_number));
     room_number[strlen(room_number)] = '\0';
 
@@ -927,13 +926,10 @@ std::vector<std::pair<int, int>> TcpContent::receive_room_info()
         sscanf(room_str, "%d %d", &room_id, &room_player);
         room_info.push_back({room_id, room_player});
     }
-    return room_info;
 }
-std::vector<std::string> TcpContent::receive_member_info()
+void TcpContent::receive_member_info(std::vector<std::string> &member_info)
 {
-    std::vector<std::string> member_info;
     member_info.clear();
-
     // receive member info from server
     char member_number[100] = "";
     char member_str[100] = "";
@@ -946,7 +942,6 @@ std::vector<std::string> TcpContent::receive_member_info()
         read(sockfd, member_str, sizeof(member_str));
         member_info.push_back(member_str);
     }
-    return member_info;
 }
 void TcpContent::send_return_to_room_selection()
 {
