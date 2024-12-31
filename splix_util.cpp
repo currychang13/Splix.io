@@ -1,5 +1,35 @@
 #include "splix_header.h"
 
+ssize_t readline(int fd, char *buffer, size_t maxlen)
+{
+    size_t n = 0;
+    ssize_t bytes_read;
+    char c;
+
+    while (n < maxlen - 1)
+    {
+        bytes_read = read(fd, &c, 1); // Read one character at a time
+        if (bytes_read == 1)
+        {
+            buffer[n++] = c;
+            if (c == '\n')
+            {
+                break; // Stop when newline is encountered
+            }
+        }
+        else if (bytes_read == 0)
+        {
+            break; // EOF reached
+        }
+        else
+        {
+            return -1; // Error occurred
+        }
+    }
+    buffer[n] = '\0'; // Null-terminate the string
+    return n;         // Return the number of characters read
+}
+
 // Initial_Window functions
 void Initial_Window::Rendertitle()
 {
@@ -24,7 +54,6 @@ void Initial_Window::Rendertitle()
     wattroff(win, COLOR_PAIR(1) | A_BOLD);
 }
 void Initial_Window::Show_Rules() {
-
 };
 // Room_Window functions
 void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
@@ -915,14 +944,14 @@ void TcpContent::receive_room_info(std::vector<std::pair<int, int>> &room_info)
     // Receive room info from server
     char room_number[100] = "";
     char room_str[100] = "";
-    read(sockfd, room_number, sizeof(room_number));
+    readline(sockfd, room_number, sizeof(room_number));
     room_number[strlen(room_number)] = '\0';
 
     int room_num = atoi(room_number);
     for (int i = 0; i < room_num; i++)
     {
         int room_id, room_player;
-        read(sockfd, room_str, sizeof(room_str));
+        readline(sockfd, room_str, sizeof(room_str));
         sscanf(room_str, "%d %d", &room_id, &room_player);
         room_info.push_back({room_id, room_player});
     }
@@ -934,12 +963,12 @@ void TcpContent::receive_member_info(std::vector<std::string> &member_info)
     char member_number[100] = "";
     char member_str[100] = "";
 
-    read(sockfd, member_number, sizeof(member_number));
+    readline(sockfd, member_number, sizeof(member_number));
     int member_num = atoi(member_number);
 
     for (int i = 0; i < member_num; i++)
     {
-        read(sockfd, member_str, sizeof(member_str));
+        readline(sockfd, member_str, sizeof(member_str));
         member_info.push_back(member_str);
     }
 }
@@ -949,6 +978,7 @@ void TcpContent::send_return_to_room_selection()
     sprintf(message, "Return to Room Selection");
     write(sockfd, message, strlen(message));
 }
+
 // player functions
 void Player::init(std::pair<int, int> position, std::pair<int, int> direction, int id, Mode mode, int acceleration_timer, int cooldown_timer, int score)
 {

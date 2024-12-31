@@ -49,7 +49,7 @@ enum Mode
 // id allocate by server
 extern int map[MAP_HEIGHT][MAP_WIDTH];
 extern int alter[MAP_HEIGHT][MAP_WIDTH];
-extern int id;
+
 class Player
 {
 public:
@@ -265,7 +265,6 @@ class Chat_Window : public Window
 {
 public:
     Chat_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
-    
 };
 
 class Gameover_Window : public Window

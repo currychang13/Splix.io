@@ -1,5 +1,5 @@
 #include "splix_header.h"
-#define DEBUG
+// #define DEBUG
 // colors
 #define COLOR_CORAL 15
 #define COLOR_PURPLE 16
@@ -338,7 +338,7 @@ int main()
             {
                 player.room_id = room_info[select_room_win.selected_room].first;
 #ifndef DEBUG
-                tcp.send_server_room_id(room_info[select_win.selected_room].first);
+                tcp.send_server_room_id(room_info[select_room_win.selected_room].first);
 #endif
             }
 
