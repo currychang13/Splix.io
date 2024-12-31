@@ -26,6 +26,7 @@ void *listen_to_server(void *arg)
         {
             buffer[bytes_received] = '\0';
             write(pipefd[1], buffer, bytes_received + 1);
+
         }
         else if (bytes_received == 0)
         {
@@ -49,11 +50,9 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 #ifndef DEBUG
     pthread_t server_thread;
 
-    // udp setup
     UdpContent udp;
     udp.udp_connect();
 
-    // thread setup
     if (pthread_create(&server_thread, NULL, listen_to_server, &udp.sockfd) != 0)
     {
         perror("Failed to create server listener thread");
@@ -65,8 +64,11 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
 #ifndef DEBUG
     std::pair<int, int> position = udp.get_position_from_server();
+    std::cerr << "position: " << position.first << " " << position.second << std::endl;
+    napms(1000);
     player.init(position, {0, 1}, udp.get_id_from_server(), Mode::NORMAL, acc_time, 0, 0);
 #endif
+
 #ifdef DEBUG
     player.init({rand() % (MAP_HEIGHT - 20), rand() % (MAP_WIDTH - 20)}, {0, 1}, 9, Mode::NORMAL, acc_time, 0, 0);
     game_win->id = player.id;
@@ -215,11 +217,11 @@ int main()
     initscr();
     start_color();
     use_default_colors();
-    cbreak();             
-    keypad(stdscr, TRUE); 
+    cbreak();
+    keypad(stdscr, TRUE);
     init_color(COLOR_GRAY, 500, 500, 500);
-    init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple 
-    init_color(COLOR_TEAL, 200, 700, 700);     // Light Teal 
+    init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple
+    init_color(COLOR_TEAL, 200, 700, 700);     // Light Teal
     init_color(COLOR_CORAL, 1000, 500, 400);   // Coral
     init_color(COLOR_DEEPGRAY, 300, 300, 300); // Dark Gray
     init_color(COLOR_WHITE, 1000, 1000, 1000); // White
@@ -296,7 +298,7 @@ int main()
             init_win.draw();
             init_win.Rendertitle();
             input_win.draw();
-            input_win.get_user_input();
+            input_win.get_user_input(); // can't not get empty name
             strcpy(player.name, input_win.name);
 #ifndef DEBUG
             TcpContent tcp;
@@ -364,9 +366,10 @@ int main()
             }
             break;
         case GameStatus::GAMING:
-            noecho(); // disable displaying input
+            noecho();
+            tcp.send_start();
             if (game_loop(&splix_win, &stat_win))
-            { // die
+            {
                 status = GameStatus::GAME_OVER;
             }
             else

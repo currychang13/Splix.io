@@ -74,16 +74,27 @@ struct Player
     int y;
     std::pair<int, int> direction; // (dy, dx)
     bool isAlive;
+    Player() : playerId(0), isAlive(true) {}
+    Player(int socket_fd, int id, int cor_x, int cor_y, std::pair<int, int> dir) : fd(socket_fd), playerId(id), x(cor_x), y(cor_y), direction(dir), isAlive(true) {}
 };
 
 struct GameState
 {
     int roomId;
-    int map[600][600];
+    int map[MAP_HEIGHT][MAP_WIDTH];
     std::map<int, Player> players; // Keyed by client fd
     int nextPlayerId;              // Newly added field for tracking next player ID
 
-    GameState() : nextPlayerId(1) {}
+    GameState() : nextPlayerId(1)
+    {
+        for (int i = 0; i < MAP_WIDTH; ++i)
+        {
+            for (int j = 0; j < MAP_HEIGHT; ++j)
+            {
+                map[i][j] = 0;
+            }
+        }
+    }
 };
 
 // Server Class
@@ -123,7 +134,7 @@ private:
 class GameManager
 {
 public:
-    GameManager(Server *serverInstance);
+    GameManager(Server *serverInstance) {};
 
     bool isGameActive(int roomId);
     void initializeGameState(int roomId);
@@ -241,16 +252,8 @@ void GameManager::initializeGameState(int roomId)
     // Create a new GameState
     GameState gameState;
     gameState.roomId = roomId;
-
     player.playerId = gameState.nextPlayerId;
-    // Initialize the 600x600 map to 0
-    for (int i = 0; i < MAP_WIDTH; ++i)
-    {
-        for (int j = 0; j < MAP_HEIGHT; ++j)
-        {
-            gameState.map[i][j] = 0;
-        }
-    }
+
     // Store the game state
     gameStates[roomId] = gameState;
 }
@@ -298,6 +301,7 @@ void *playerThreadFunction(void *args)
     int assignedPort = ntohs(servaddr.sin_port);
     std::cout << "UDP connection established for Client FD " << Playerargs->clientFd << " on port " << assignedPort << "\n";
     cliaddr = Playerargs->gameManager->server->clients[Playerargs->roomId].clientAddr;
+
     std::string position = std::to_string(Playerargs->gameManager->player.y) + std::to_string(Playerargs->gameManager->player.x);
     sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, sizeof(cliaddr));
     while (true)
@@ -333,11 +337,9 @@ void GameManager::addPlayerToGame(int roomId, int clientFd)
 {
     pthread_mutex_lock(&server->getGameMutex());
 
-    auto &gameState = gameStates[roomId];
-    Player player;
-    player.fd = clientFd;
-    player.direction = {0, 1}; // Default direction: moving right
-    player.isAlive = true;
+    auto &gameState = gameStates[roomId]; // bug
+
+    Player player(clientFd, gameState.nextPlayerId, 0, 0, {0, 1});
 
     // Assign a sequential playerId based on join order
     int playerId = gameState.nextPlayerId++;
@@ -1034,7 +1036,7 @@ void Server::handleStartCommand(int clientFd, const std::string &message)
 
     clients[clientFd].state = ClientState::PLAYING_GAME;
 
-    gameManager->initializeGameState(roomId);
+    gameManager->initializeGameState(roomId); // bug
     gameManager->addPlayerToGame(roomId, clientFd);
 
     std::cout << "Client FD " << clientFd << " started game in Room " << roomId << "\n";

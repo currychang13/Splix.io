@@ -15,7 +15,7 @@
 
 #define MAP_HEIGHT 600
 #define MAP_WIDTH 600
-#define SERVER_IP "127.0.0.1"//"140.113.66.205"
+#define SERVER_IP "127.0.0.1" //"140.113.66.205"
 
 // size of windows
 #define HEIGHT_GAME_WIN 50
@@ -297,6 +297,7 @@ public:
     void send_return_to_room_selection();
     void receive_room_info(std::vector<std::pair<int, int>> &room_info);
     void receive_member_info(std::vector<std::string> &member_info);
+    void send_start();
 };
 
 #endif

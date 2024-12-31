@@ -55,6 +55,7 @@ void Initial_Window::Rendertitle()
 }
 void Initial_Window::Show_Rules() {
 };
+
 // Room_Window functions
 void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
 {
@@ -90,7 +91,7 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
     else
     {
         wattron(win, A_REVERSE);
-        mvwprintw(win, 13, (width - 16) / 2, "Create a new room");
+        mvwprintw(win, 13, (width - 18) / 2, "Create a new room");
         wattroff(win, A_REVERSE);
         wrefresh(win);
     }
@@ -913,7 +914,7 @@ void TcpContent::tcp_connect()
 {
     // Create socket
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
+    int n;
     // Initialize server address
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
@@ -921,7 +922,10 @@ void TcpContent::tcp_connect()
     inet_pton(AF_INET, SERVER_IP, &servaddr.sin_addr);
 
     // Connect to server
-    connect(sockfd, (const sockaddr *)&servaddr, sizeof(servaddr));
+    if ((n = connect(sockfd, (const sockaddr *)&servaddr, sizeof(servaddr))) < 0)
+    {
+        perror("connection failed");
+    };
 }
 void TcpContent::send_server_name(char *name)
 {
@@ -976,7 +980,12 @@ void TcpContent::send_return_to_room_selection()
     sprintf(message, "Return to Room Selection");
     write(sockfd, message, strlen(message));
 }
-
+void TcpContent::send_start()
+{
+    char message[100] = "";
+    sprintf(message, "start");
+    write(sockfd, message, strlen(message));
+}
 // player functions
 void Player::init(std::pair<int, int> position, std::pair<int, int> direction, int id, Mode mode, int acceleration_timer, int cooldown_timer, int score)
 {
