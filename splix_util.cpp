@@ -905,17 +905,20 @@ void TcpContent::send_server_name(char *name)
 }
 void TcpContent::send_server_room_id(int room_id)
 {
-    char room_str[100];
+    char room_str[100] = "";
     sprintf(room_str, "%d", room_id);
+    room_str[strlen(room_str)] = '\0';
     write(sockfd, room_str, strlen(room_str));
 }
 std::vector<std::pair<int, int>> TcpContent::receive_room_info()
 {
     // Receive room info from server
-    char room_number[100];
-    char room_str[100];
+    char room_number[100] = "";
+    char room_str[100] = "";
     std::vector<std::pair<int, int>> room_info;
     read(sockfd, room_number, sizeof(room_number));
+    room_number[strlen(room_number)] = '\0';
+
     int room_num = atoi(room_number);
     for (int i = 0; i < room_num; i++)
     {
@@ -932,8 +935,8 @@ std::vector<std::string> TcpContent::receive_member_info()
     member_info.clear();
 
     // receive member info from server
-    char member_number[100];
-    char member_str[100];
+    char member_number[100] = "";
+    char member_str[100] = "";
 
     read(sockfd, member_number, sizeof(member_number));
     int member_num = atoi(member_number);

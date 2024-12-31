@@ -205,7 +205,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     }
 #ifndef DEBUG
     pthread_cancel(server_thread);
-    pthread_join(server_thread, NULL);
 #endif
     return false;
 }
@@ -216,11 +215,11 @@ int main()
     initscr();
     start_color();
     use_default_colors();
-    cbreak();             // disable line buffering, but allow signals(ctrl+c, ctrl+z, etc.)
-    keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
+    cbreak();             
+    keypad(stdscr, TRUE); 
     init_color(COLOR_GRAY, 500, 500, 500);
-    init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple (RGB: 80%, 40%, 90%)
-    init_color(COLOR_TEAL, 200, 700, 700);     // Light Teal (RGB: 0%, 50%, 50%)
+    init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple 
+    init_color(COLOR_TEAL, 200, 700, 700);     // Light Teal 
     init_color(COLOR_CORAL, 1000, 500, 400);   // Coral
     init_color(COLOR_DEEPGRAY, 300, 300, 300); // Dark Gray
     init_color(COLOR_WHITE, 1000, 1000, 1000); // White
@@ -323,7 +322,6 @@ int main()
                 break;
             }
 
-            //  create a new room
             else if (select_room_win.selected_room == room_info.size())
             {
                 create_win.draw();
@@ -331,7 +329,6 @@ int main()
                 cr_input_win.draw();
                 cr_input_win.get_user_input();
                 player.room_id = atoi(cr_input_win.id);
-
 #ifndef DEBUG
                 tcp.send_server_room_id(atoi(cr_input_win.id)); // send id to server, if room exist, join
 #endif
