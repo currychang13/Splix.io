@@ -909,7 +909,7 @@ void TcpContent::send_server_room_id(int room_id)
     sprintf(room_str, "%d", room_id);
     write(sockfd, room_str, strlen(room_str));
 }
-std::vector<std::pair<int, int>> TcpContent::receive_room_info(int room_id)
+std::vector<std::pair<int, int>> TcpContent::receive_room_info()
 {
     // Receive room info from server
     char room_number[100];
@@ -926,7 +926,7 @@ std::vector<std::pair<int, int>> TcpContent::receive_room_info(int room_id)
     }
     return room_info;
 }
-std::vector<std::string> TcpContent::receive_member_info(int room_id)
+std::vector<std::string> TcpContent::receive_member_info()
 {
     std::vector<std::string> member_info;
     member_info.clear();
@@ -947,7 +947,7 @@ std::vector<std::string> TcpContent::receive_member_info(int room_id)
 }
 void TcpContent::send_return_to_room_selection()
 {
-    char message[100];
+    char message[100] = "";
     sprintf(message, "Return to Room Selection");
     write(sockfd, message, strlen(message));
 }

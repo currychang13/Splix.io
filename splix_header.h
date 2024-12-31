@@ -291,8 +291,8 @@ public:
     void send_server_name(char *name);
     void send_server_room_id(int room_id);
     void send_return_to_room_selection();
-    std::vector<std::pair<int, int>> receive_room_info(int room_id);
-    std::vector<std::string> receive_member_info(int room_id);
+    std::vector<std::pair<int, int>> receive_room_info();
+    std::vector<std::string> receive_member_info();
 };
 
 #endif

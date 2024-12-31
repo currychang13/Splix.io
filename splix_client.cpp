@@ -303,13 +303,15 @@ int main()
             TcpContent tcp;
             tcp.tcp_connect();
             tcp.send_server_name(player.name);
-            room_info = tcp.receive_room_info(player.room_id);
 #endif
             status = GameStatus::ROOM_SELECTION;
             break;
         case GameStatus::ROOM_SELECTION:
             select_room_win.draw();
             select_room_win.Render_select_room();
+#ifndef DEBUG
+            room_info = tcp.receive_room_info();
+#endif
             select_room_win.select_room(room_info);
             // return to lobby
             if (select_room_win.selected_room == room_info.size() + 1)
@@ -350,7 +352,7 @@ int main()
             room_win.draw();
             room_win.Render_room();
 #ifndef DEBUG
-            member_info = tcp.receive_member_info(player.room_id); // thread
+            member_info = tcp.receive_member_info(); // thread
 #endif
             room_win.inside_room(member_info, player.room_id);
             if (room_win.selected_object == member_info.size())
