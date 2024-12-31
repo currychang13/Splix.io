@@ -19,15 +19,15 @@ ssize_t readline(int fd, char *buffer, size_t maxlen)
         }
         else if (bytes_read == 0)
         {
-            break; // EOF reached
+            break;
         }
         else
         {
-            return -1; // Error occurred
+            return -1;
         }
     }
-    buffer[n] = '\0'; // Null-terminate the string
-    return n;         // Return the number of characters read
+    buffer[n] = '\0';
+    return n;
 }
 
 // Initial_Window functions
@@ -61,7 +61,7 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
     nodelay(win, TRUE);
     keypad(win, TRUE);
     curs_set(0);
-
+    noecho();
     if (room_info.size() == 0)
     {
         mvwprintw(win, 11, (width - 16) / 2, "No room here...");
@@ -881,7 +881,7 @@ void UdpContent::udp_connect()
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(SERVER_PORT);
-    inet_pton(AF_INET, "140.113.66.205", &servaddr.sin_addr);
+    inet_pton(AF_INET, SERVER_IP, &servaddr.sin_addr);
 }
 void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id)
 {
@@ -918,7 +918,7 @@ void TcpContent::tcp_connect()
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(12345);
-    inet_pton(AF_INET, "140.113.66.205", &servaddr.sin_addr);
+    inet_pton(AF_INET, SERVER_IP, &servaddr.sin_addr);
 
     // Connect to server
     connect(sockfd, (const sockaddr *)&servaddr, sizeof(servaddr));
@@ -945,8 +945,6 @@ void TcpContent::receive_room_info(std::vector<std::pair<int, int>> &room_info)
     char room_number[100] = "";
     char room_str[100] = "";
     readline(sockfd, room_number, sizeof(room_number));
-    room_number[strlen(room_number)] = '\0';
-
     int room_num = atoi(room_number);
     for (int i = 0; i < room_num; i++)
     {

@@ -15,6 +15,7 @@
 
 #define MAP_HEIGHT 600
 #define MAP_WIDTH 600
+#define SERVER_IP "127.0.0.1"//"140.113.66.205"
 
 // size of windows
 #define HEIGHT_GAME_WIN 50

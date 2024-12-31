@@ -151,7 +151,7 @@ void Server::sendRoomInfo(int clientFd, Server &server)
     std::stringstream ssr;
 
     // 1. Send the number of available rooms
-    ssr << rooms.size();
+    ssr << rooms.size() << "\n";
     std::string roomsSize = ssr.str();
 
     if (write(clientFd, roomsSize.c_str(), roomsSize.length()) < 0)
@@ -164,7 +164,7 @@ void Server::sendRoomInfo(int clientFd, Server &server)
         std::stringstream ss;
         for (const auto &[roomId, room] : rooms)
         {
-            ss << roomId << " " << room.clientFd.size();
+            ss << roomId << " " << room.clientFd.size() << "\n";
             std::string info = ss.str();
 
             if (write(clientFd, info.c_str(), info.length()) < 0)
@@ -193,11 +193,13 @@ void Server::joinRoom(int roomId, int clientFd, Server &server)
         {
             ss << username << "\n";
         }
+
         std::string userList = ss.str();
         int shit = rooms[roomId].usernames.size();
-        std::string tmp = std::to_string(shit);
+        std::string tmp = std::to_string(shit) + "\n";
         write(clientFd, tmp.c_str(), tmp.length());
         ssize_t bytesSent = write(clientFd, userList.c_str(), userList.length());
+
         if (bytesSent < 0)
         {
             perror("write error in joinRoom");
@@ -217,10 +219,10 @@ void Server::joinRoom(int roomId, int clientFd, Server &server)
 
         // Update the client's roomId
         clients[clientFd].roomId = roomId;
-        std::string name = clients[clientFd].username;
+        std::string name = clients[clientFd].username + "\n";
 
         int shit = rooms[roomId].usernames.size();
-        std::string tmp = std::to_string(shit);
+        std::string tmp = std::to_string(shit) + "\n";
         write(clientFd, tmp.c_str(), tmp.length());
 
         ssize_t bytesSent = write(clientFd, name.c_str(), name.length());
