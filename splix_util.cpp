@@ -56,7 +56,7 @@ void Initial_Window::Rendertitle()
 void Initial_Window::Show_Instruction()
 {
     wattron(win, COLOR_PAIR(3) | A_BOLD | A_BLINK);
-    mvwprintw(win, 18, (WIDTH_INIT_WIN - 31) / 2, "Type your name and press Enter");
+    mvwprintw(win, 18, (WIDTH_INIT_WIN - 30) / 2, "Type your name and press Enter");
     wattroff(win, COLOR_PAIR(3) | A_BOLD | A_BLINK);
 };
 void Rule_Window::Show_Rules()
@@ -877,24 +877,29 @@ void UdpContent::udp_connect()
 {
     // Create socket
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-
     // Initialize server address
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(SERVER_PORT);
+    servaddr.sin_port = htons(port);
     inet_pton(AF_INET, SERVER_IP, &servaddr.sin_addr);
+    if (connect(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+    {
+        perror("Connect failed");
+        close(sockfd);
+        exit(EXIT_FAILURE);
+    }
 }
 void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode)
 {
-    char message[BUFFER_SIZE];
-    sprintf(message, "%d %d %d %s", id, coordinate_y, coordinate_x, mode == Mode::FAST ? "FAST" : "NORMAL");
-    sendto(sockfd, message, strlen(message), 0, (struct sockaddr *)&servaddr, sizeof(servaddr));
+    char message[BUFFER_SIZE] = "";
+    sprintf(message, "%d %d %s", coordinate_y, coordinate_x, mode == Mode::FAST ? "FAST" : "NORMAL"); // send position, mode to server
+    send(sockfd, message, strlen(message), MSG_CONFIRM);
 }
 int UdpContent::get_id_from_server()
 {
     char message[BUFFER_SIZE];
     int n;
-    n = recvfrom(sockfd, message, BUFFER_SIZE, 0, NULL, NULL);
+    n = recv(sockfd, message, BUFFER_SIZE, 0);
     message[n] = '\0';
     return atoi(message);
 }
@@ -902,7 +907,7 @@ std::pair<int, int> UdpContent::get_position_from_server()
 {
     char message[BUFFER_SIZE];
     int n;
-    n = recvfrom(sockfd, message, BUFFER_SIZE, 0, NULL, NULL);
+    n = recv(sockfd, message, BUFFER_SIZE,0);
     message[n] = '\0';
     std::pair<int, int> position;
     sscanf(message, "%d %d", &position.first, &position.second);
@@ -918,7 +923,7 @@ void TcpContent::tcp_connect()
     // Initialize server address
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(12345);
+    servaddr.sin_port = htons(port);
     inet_pton(AF_INET, SERVER_IP, &servaddr.sin_addr);
 
     // Connect to server
@@ -986,7 +991,12 @@ void TcpContent::send_start()
     sprintf(message, "start");
     write(sockfd, message, strlen(message));
 }
-
+void TcpContent::receive_port(int &port)
+{
+    char port_str[100] = "";
+    readline(sockfd, port_str, sizeof(port_str));
+    port = atoi(port_str);
+}
 // player functions
 void Player::init(std::pair<int, int> position, std::pair<int, int> direction, int id, Mode mode, int acceleration_timer, int cooldown_timer, int score)
 {

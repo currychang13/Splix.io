@@ -10,6 +10,8 @@
 int map[MAP_HEIGHT][MAP_WIDTH];
 int pipefd[2];
 Player player;
+TcpContent tcp;
+UdpContent udp;
 
 void *listen_to_server(void *arg)
 {
@@ -49,7 +51,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 #ifndef DEBUG
     pthread_t server_thread;
 
-    UdpContent udp;
     udp.udp_connect();
 
     if (pthread_create(&server_thread, NULL, listen_to_server, &udp.sockfd) != 0)
@@ -86,7 +87,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 #ifndef DEBUG
         ssize_t bytes_read = read(pipefd[0], pipe_buffer, sizeof(pipe_buffer) - 1);
 
-        if (bytes_read > 0)
+        if (bytes_read > 0)//only read one position
         {
             pipe_buffer[bytes_read] = '\0';
             int move_x, move_y, id;
@@ -215,13 +216,14 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
             game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
             stat_win->update_status(player.coordinate_y, player.coordinate_x,
-                                    player.mode == Mode::FAST ? "BURST" : "NORMAL", player.id);
+                                    (player.mode == Mode::FAST) ? "BURST" : "NORMAL", player.id);
             stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
             wrefresh(stat_win->win);
         }
     }
 #ifndef DEBUG
     pthread_cancel(server_thread);
+    close(udp.sockfd);
 #endif
     return false;
 }
@@ -262,19 +264,21 @@ int main()
 
     GameStatus status = GameStatus::INITIAL;
 
-#ifndef DEBUG
-    int sockfd;
-#endif
     // windows
     Initial_Window init_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-    Rule_Window rule_win(11, 37, (LINES - 7) / 2, (COLS - 40) / 2);
-    Select_Room_Window select_room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-    Create_Room_Window create_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-    CR_Input_Window cr_input_win(HEIGHT_INIT_WIN / 13, WIDTH_INIT_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_INIT_WIN / 12) / 2.5, (COLS - WIDTH_INIT_WIN / 2) / 2);
-    Room_Window room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
+    Rule_Window rule_win(11, 37, (LINES - 7) / 2, (COLS - 37) / 2);
     Input_Window input_win(HEIGHT_INIT_WIN / 13, WIDTH_GAME_WIN / 3, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 13) / 2.5, (COLS - WIDTH_GAME_WIN / 3) / 2);
+
+    Select_Room_Window select_room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
+
+    Create_Room_Window create_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
+    CR_Input_Window cr_input_win(HEIGHT_INIT_WIN / 13, WIDTH_INIT_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_INIT_WIN / 13) / 2, (COLS - WIDTH_INIT_WIN / 2) / 2);
+
+    Room_Window room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
+
     Status_Window stat_win(HEIGHT_GAME_WIN / 5, WIDTH_GAME_WIN / 4, (LINES - HEIGHT_GAME_WIN) / 2, (COLS + WIDTH_GAME_WIN) / 2);
     Splix_Window splix_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
+
     Gameover_Window gameover_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
 
     while (true)
@@ -321,20 +325,20 @@ int main()
             input_win.get_user_input(); // can't not get empty name
             strcpy(player.name, input_win.name);
 #ifndef DEBUG
-            TcpContent tcp;
             tcp.tcp_connect();
             tcp.send_server_name(player.name);
 #endif
             status = GameStatus::ROOM_SELECTION;
             break;
         case GameStatus::ROOM_SELECTION:
+            select_room_win.clean();
             select_room_win.draw();
             select_room_win.Render_select_room();
 #ifndef DEBUG
             tcp.receive_room_info(room_info);
 #endif
             select_room_win.select_room(room_info);
-            // return to lobby
+
             if (select_room_win.selected_room == room_info.size() + 1)
             {
                 status = GameStatus::INITIAL;
@@ -389,6 +393,7 @@ int main()
             noecho();
 #ifndef DEBUG
             tcp.send_start();
+            tcp.receive_port(udp.port);
 #endif
             if (game_loop(&splix_win, &stat_win))
             {

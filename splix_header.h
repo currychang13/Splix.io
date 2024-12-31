@@ -17,7 +17,6 @@
 #define MAP_WIDTH 600
 
 #define SERVER_IP "127.0.0.1" //"140.113.66.205"
-#define SERVER_PORT 12345
 
 // size of windows
 #define HEIGHT_INIT_WIN 50
@@ -50,7 +49,6 @@ enum Mode
     SLOW
 };
 
-// id allocate by server
 extern int map[MAP_HEIGHT][MAP_WIDTH];
 extern int alter[MAP_HEIGHT][MAP_WIDTH];
 
@@ -111,6 +109,11 @@ public:
         wattron(win, A_BOLD);
         Custom_Border_2(win);
         wattroff(win, A_BOLD);
+        wrefresh(win);
+    }
+    void clean()
+    {
+        werase(win);
         wrefresh(win);
     }
     void Custom_Border_1(WINDOW *win)
@@ -280,6 +283,7 @@ class UdpContent
 {
 public:
     int sockfd;
+    int port;
     struct sockaddr_in servaddr;
     void udp_connect();
     void send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode);
@@ -291,6 +295,7 @@ class TcpContent
 {
 public:
     int sockfd;
+    int port = 12345;
     struct sockaddr_in servaddr;
     void tcp_connect();
     void send_server_name(char *name);
@@ -299,5 +304,6 @@ public:
     void receive_room_info(std::vector<std::pair<int, int>> &room_info);
     void receive_member_info(std::vector<std::string> &member_info);
     void send_start();
+    void receive_port(int &port);
 };
 #endif
