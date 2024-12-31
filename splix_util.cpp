@@ -53,7 +53,19 @@ void Initial_Window::Rendertitle()
     wrefresh(win);
     wattroff(win, COLOR_PAIR(1) | A_BOLD);
 }
-void Initial_Window::Show_Rules() {
+void Initial_Window::Show_Instruction()
+{
+    wattron(win, COLOR_PAIR(3) | A_BOLD | A_BLINK);
+    mvwprintw(win, 18, (WIDTH_INIT_WIN - 31) / 2, "Type your name and press Enter");
+    wattroff(win, COLOR_PAIR(3) | A_BOLD | A_BLINK);
+};
+void Rule_Window::Show_Rules()
+{
+    mvwprintw(win, 1, (width - 12) / 2, "How to Play");
+    mvwprintw(win, 4, (width - 31) / 2, "Use arrow keys or WASD to move");
+    mvwprintw(win, 6, (width - 23) / 2, "Press F to boost speed");
+    mvwprintw(win, 8, (width - 25) / 2, "Press Q to quit the game");
+    wrefresh(win);
 };
 
 // Room_Window functions
@@ -326,48 +338,40 @@ void Room_Window::inside_room(std::vector<std::string> member_info, int room_id)
     nodelay(win, TRUE); // Non-blocking input
     keypad(win, TRUE);
     curs_set(0);
-
-    // Calculate player display configuration
     int num_players = member_info.size();
     int half_players = (num_players + 1) / 2; // First line has half (round up)
-    int row_start = 13;
-    int col_start_first = width / 4 + 1;
-    int col_start_second = 2 * width / 4 + 6;
+
+    Window Room_member_win(2 * half_players + 10, width / 1.5, 15, (COLS - width / 1.5) / 2);
+    // Calculate player display configuration
+
+    int row_start = 1;
+    int col_start_first = 3;
+    int col_start_second = Room_member_win.width - 26;
 
     // Display Room ID
     std::string room_id_str = "Room " + std::to_string(room_id);
-    int RM_ID_HEIGHT = 3;
-    int RM_ID_WIDTH = room_id_str.length() + 2;
-    Room_ID_Window Room_id_win(RM_ID_HEIGHT, RM_ID_WIDTH, 15, (COLS - RM_ID_WIDTH) / 2);
-    mvwprintw(Room_id_win.win, 1, 1, "%s", room_id_str.c_str());
-    Room_id_win.draw();
-    wrefresh(Room_id_win.win);
-
+    wattron(Room_member_win.win, A_BOLD);
+    mvwprintw(Room_member_win.win, row_start, 2, "%s", room_id_str.c_str());
+    wattroff(Room_member_win.win, A_BOLD);
+    Room_member_win.draw();
     row_start += 2;
-
     // Display the players split into two lines
     for (int i = 0; i < num_players; ++i)
     {
         std::string player_str = "Player " + std::to_string(i + 1) + ": " + member_info[i];
-        mvwprintw(win, row_start, (i % 2 == 0) ? col_start_first : col_start_second, "%s", player_str.c_str());
+        mvwprintw(Room_member_win.win, row_start, (i % 2 == 0) ? col_start_first : col_start_second, "%s", player_str.c_str());
         if (i % 2 == 1)
         {
-            row_start += 2;
+            row_start += 3;
         }
     }
-    row_start += 2; // Move down for the next line
-
+    int pos_row = Room_member_win.height - 2, pos_col_first = 28, pos_col_second = pos_col_first + 13;
     // Highlight the initial selection
-    wattron(win, A_REVERSE);
-    mvwprintw(win, row_start, col_start_first + 12, "Enter Game");
-    wattroff(win, A_REVERSE);
-    mvwprintw(win, row_start, col_start_second - 4, "Return to Room Selection");
-    wrefresh(win);
-
-    // Display the chatroom
-    mvwprintw(win, row_start + 2, col_start_first, "Chatroom:");
-
-    wrefresh(win);
+    wattron(Room_member_win.win, A_REVERSE);
+    mvwprintw(Room_member_win.win, pos_row, pos_col_first, "Enter Game");
+    wattroff(Room_member_win.win, A_REVERSE);
+    mvwprintw(Room_member_win.win, pos_row, pos_col_second, "Back to Room Selection");
+    wrefresh(Room_member_win.win);
 
     // Handle user selection
     selected_object = num_players; // Start with "Enter Game" selected
@@ -379,11 +383,11 @@ void Room_Window::inside_room(std::vector<std::string> member_info, int room_id)
         // Remove highlighting from the currently selected option
         if (selected_object == num_players)
         {
-            mvwprintw(win, row_start, col_start_first + 12, "Enter Game");
+            mvwprintw(Room_member_win.win, pos_row, pos_col_first, "Enter Game");
         }
         else if (selected_object == num_players + 1)
         {
-            mvwprintw(win, row_start, col_start_second - 4, "Return to Room Selection");
+            mvwprintw(Room_member_win.win, pos_row, pos_col_second, "Back to Room Selection");
         }
 
         // Update selection based on user input
@@ -403,17 +407,17 @@ void Room_Window::inside_room(std::vector<std::string> member_info, int room_id)
         // Highlight the newly selected option
         if (selected_object == num_players)
         {
-            wattron(win, A_REVERSE);
-            mvwprintw(win, row_start, col_start_first + 12, "Enter Game");
-            wattroff(win, A_REVERSE);
+            wattron(Room_member_win.win, A_REVERSE);
+            mvwprintw(Room_member_win.win, pos_row, pos_col_first, "Enter Game");
+            wattroff(Room_member_win.win, A_REVERSE);
         }
         else if (selected_object == num_players + 1)
         {
-            wattron(win, A_REVERSE);
-            mvwprintw(win, row_start, col_start_second - 4, "Return to Room Selection");
-            wattroff(win, A_REVERSE);
+            wattron(Room_member_win.win, A_REVERSE);
+            mvwprintw(Room_member_win.win, pos_row, pos_col_second, "Back to Room Selection");
+            wattroff(Room_member_win.win, A_REVERSE);
         }
-        wrefresh(win);
+        wrefresh(Room_member_win.win);
     }
 }
 
@@ -499,75 +503,71 @@ void Input_Window::get_user_input()
 // Splix_Window functions
 void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode)
 {
-
     int half_rows = height / 2;
     int half_cols = width / 2;
 
-    int start_y = coordinate_y - half_rows;
-    int start_x = coordinate_x - half_cols;
+    int start_y = std::max(0, coordinate_y - half_rows);
+    int start_x = std::max(0, coordinate_x - half_cols);
 
-    if (start_y < 0)
-        start_y = 0;
-    if (start_x < 0)
-        start_x = 0;
     if (start_y + height > MAP_HEIGHT)
         start_y = MAP_HEIGHT - height;
     if (start_x + width > MAP_WIDTH)
         start_x = MAP_WIDTH - width;
-    bool up = false;
-    bool down = false;
-    bool left = false;
-    bool right = false;
-    if (coordinate_y <= half_rows)
-        up = true;
-    if (coordinate_y >= MAP_HEIGHT - half_rows)
-        down = true;
-    if (coordinate_x <= half_cols)
-        left = true;
-    if (coordinate_x >= MAP_WIDTH - half_cols)
-        right = true;
-    Custom_Blink_Border(win, up, down, left, right);
+
+    Custom_Blink_Border(win,
+                        coordinate_y <= half_rows,
+                        coordinate_y >= MAP_HEIGHT - half_rows,
+                        coordinate_x <= half_cols,
+                        coordinate_x >= MAP_WIDTH - half_cols);
 
     setlocale(LC_ALL, "");
 
-    for (int i = 0; i < height - 2; i++)
-    {
-        for (int j = 0; j < width - 2; j++)
-        {
-            int map_y = start_y + i;
-            int map_x = start_x + j;
+    int visible_start_y = std::max(0, start_y);
+    int visible_start_x = std::max(0, start_x);
+    int visible_end_y = std::min(MAP_HEIGHT, start_y + height - 2);
+    int visible_end_x = std::min(MAP_WIDTH, start_x + width - 2);
 
-            if (map_y < 0 || map_y >= MAP_HEIGHT || map_x < 0 || map_x >= MAP_WIDTH)
-                continue;
-            const wchar_t *symbol;
+    for (int i = visible_start_y; i < visible_end_y; ++i)
+    {
+        for (int j = visible_start_x; j < visible_end_x; ++j)
+        {
+            int map_y = i;
+            int map_x = j;
+
+            const wchar_t *symbol = nullptr;
             int value = map[map_y][map_x];
+            int color_pair;
+
             if (value == 0)
             {
-                symbol = L".";                // Empty space
-                wattron(win, COLOR_PAIR(19)); // Gray
+                color_pair = 19;
+                symbol = L".";
             }
             else if (value < 0)
             {
-                symbol = L"■"; // Filled territory
-                wattron(win, COLOR_PAIR(value * -1));
+                color_pair = -value;
+                symbol = L"■";
             }
             else if (value > 0)
             {
+                color_pair = value;
                 if (mode == Mode::FAST)
-                    symbol = L"★"; // Player trail in FAST mode
+                    symbol = L"★";
                 else
-                    symbol = L"▪"; // Player trail in NORMAL mode
-                wattron(win, COLOR_PAIR(value));
+                    symbol = L"▪";
             }
             if (map_y == coordinate_y && map_x == coordinate_x)
             {
-                symbol = L"◯"; // Player
+                symbol = L"◯";
             }
-            mvwaddwstr(win, i + 1, j + 1, symbol);
-            wattroff(win, COLOR_PAIR(value * -1) | COLOR_PAIR(value));
+            wattron(win, COLOR_PAIR(color_pair));
+            mvwaddwstr(win, map_y - visible_start_y + 1, map_x - visible_start_x + 1, symbol);
+            wattroff(win, COLOR_PAIR(color_pair));
         }
     }
+    wrefresh(win);
 }
+
 void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
 {
     // create initial territory
@@ -884,10 +884,10 @@ void UdpContent::udp_connect()
     servaddr.sin_port = htons(SERVER_PORT);
     inet_pton(AF_INET, SERVER_IP, &servaddr.sin_addr);
 }
-void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id)
+void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode)
 {
     char message[BUFFER_SIZE];
-    sprintf(message, "%d %d %d", id, coordinate_y, coordinate_x);
+    sprintf(message, "%d %d %d %s", id, coordinate_y, coordinate_x, mode == Mode::FAST ? "FAST" : "NORMAL");
     sendto(sockfd, message, strlen(message), 0, (struct sockaddr *)&servaddr, sizeof(servaddr));
 }
 int UdpContent::get_id_from_server()
@@ -986,6 +986,7 @@ void TcpContent::send_start()
     sprintf(message, "start");
     write(sockfd, message, strlen(message));
 }
+
 // player functions
 void Player::init(std::pair<int, int> position, std::pair<int, int> direction, int id, Mode mode, int acceleration_timer, int cooldown_timer, int score)
 {

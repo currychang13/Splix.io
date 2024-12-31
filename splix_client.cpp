@@ -1,5 +1,5 @@
 #include "splix_header.h"
-// #define DEBUG
+#define DEBUG
 // colors
 #define COLOR_CORAL 15
 #define COLOR_PURPLE 16
@@ -26,7 +26,6 @@ void *listen_to_server(void *arg)
         {
             buffer[bytes_received] = '\0';
             write(pipefd[1], buffer, bytes_received + 1);
-
         }
         else if (bytes_received == 0)
         {
@@ -64,24 +63,23 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
 #ifndef DEBUG
     std::pair<int, int> position = udp.get_position_from_server();
-    std::cerr << "position: " << position.first << " " << position.second << std::endl;
-    napms(1000);
     player.init(position, {0, 1}, udp.get_id_from_server(), Mode::NORMAL, acc_time, 0, 0);
 #endif
 
 #ifdef DEBUG
     player.init({rand() % (MAP_HEIGHT - 20), rand() % (MAP_WIDTH - 20)}, {0, 1}, 9, Mode::NORMAL, acc_time, 0, 0);
     game_win->id = player.id;
-
 #endif
+
     game_win->draw();
     game_win->create_initial_territory(player.coordinate_y, player.coordinate_x);
     game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
     stat_win->draw();
     stat_win->update_status(player.coordinate_y, player.coordinate_x, "NORMAL", player.id);
     // Start the ticker
-    GameTicker ticker_normal(10);
-    GameTicker ticker_fast(30);
+    GameTicker ticker_slow(5);
+    GameTicker ticker_normal(15);
+    GameTicker ticker_fast(45);
 
     while (true)
     {
@@ -91,10 +89,16 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
         if (bytes_read > 0)
         {
             pipe_buffer[bytes_read] = '\0';
+            int move_x, move_y, id;
+            char mode_str[10];
+            sscanf(pipe_buffer, "%d %d %d %s", &move_y, &move_x, &id, mode_str);
+            Mode mode = mode_str == "FAST" ? Mode::FAST : Mode::NORMAL;
+            map[move_y][move_x] = id;
+            game_win->render_game(move_y, move_x, mode);
         }
 #endif
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
-            (player.mode == Mode::FAST && ticker_fast.is_tick_due()))
+            (player.mode == Mode::FAST && ticker_fast.is_tick_due()) || ticker_slow.is_tick_due() && player.mode == Mode::SLOW)
         {
             // update_alter_map();
             int ch = wgetch(game_win->win);
@@ -137,6 +141,16 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                             player.acceleration_timer = acc_time;
                     }
                     break;
+                case 'g':
+                    if (player.mode == Mode::SLOW)
+                    {
+                        player.mode = Mode::NORMAL;
+                    }
+                    else
+                    {
+                        player.mode = Mode::SLOW;
+                    }
+                    break;
                 default:
                     break;
                 }
@@ -150,23 +164,24 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             // Handle timers
             if (player.mode == Mode::FAST && player.acceleration_timer > 0)
             {
-                player.acceleration_timer--; // Decrement timer
+                player.acceleration_timer--;
                 if (player.acceleration_timer == 0)
                 {
-                    player.mode = Mode::NORMAL;
+                    player.mode = Mode::SLOW;
                     player.cooldown_timer = cool_time;
                 }
             }
-            if (player.mode == Mode::NORMAL && player.acceleration_timer > 0 && player.acceleration_timer < acc_time)
+            if ((player.mode == Mode::NORMAL || player.mode == Mode::SLOW) && player.acceleration_timer > 0 && player.acceleration_timer < acc_time)
             {
                 player.acceleration_timer++;
             }
             else if (player.cooldown_timer > 0)
             {
-                player.cooldown_timer--; // Decrement cooldown timer
+                player.cooldown_timer--;
                 if (player.cooldown_timer == 0)
                 {
                     player.acceleration_timer = acc_time;
+                    player.mode = Mode::NORMAL;
                 }
             }
 
@@ -194,7 +209,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             {
                 map[player.coordinate_y][player.coordinate_x] = player.id;
 #ifndef DEBUG
-                udp.send_server_position(player.coordinate_y, player.coordinate_x, player.id);
+                udp.send_server_position(player.coordinate_y, player.coordinate_x, player.id, player.mode);
 #endif
             }
 
@@ -252,11 +267,12 @@ int main()
 #endif
     // windows
     Initial_Window init_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
+    Rule_Window rule_win(11, 37, (LINES - 7) / 2, (COLS - 40) / 2);
     Select_Room_Window select_room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
     Create_Room_Window create_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
     CR_Input_Window cr_input_win(HEIGHT_INIT_WIN / 13, WIDTH_INIT_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_INIT_WIN / 12) / 2.5, (COLS - WIDTH_INIT_WIN / 2) / 2);
     Room_Window room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-    Input_Window input_win(HEIGHT_INIT_WIN / 13, WIDTH_GAME_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 12) / 2.5, (COLS - WIDTH_GAME_WIN / 2) / 2);
+    Input_Window input_win(HEIGHT_INIT_WIN / 13, WIDTH_GAME_WIN / 3, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 13) / 2.5, (COLS - WIDTH_GAME_WIN / 3) / 2);
     Status_Window stat_win(HEIGHT_GAME_WIN / 5, WIDTH_GAME_WIN / 4, (LINES - HEIGHT_GAME_WIN) / 2, (COLS + WIDTH_GAME_WIN) / 2);
     Splix_Window splix_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
     Gameover_Window gameover_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
@@ -297,6 +313,10 @@ int main()
         case GameStatus::INITIAL:
             init_win.draw();
             init_win.Rendertitle();
+            init_win.Show_Instruction();
+            wrefresh(init_win.win);
+            rule_win.draw();
+            rule_win.Show_Rules();
             input_win.draw();
             input_win.get_user_input(); // can't not get empty name
             strcpy(player.name, input_win.name);
@@ -367,7 +387,9 @@ int main()
             break;
         case GameStatus::GAMING:
             noecho();
+#ifndef DEBUG
             tcp.send_start();
+#endif
             if (game_loop(&splix_win, &stat_win))
             {
                 status = GameStatus::GAME_OVER;

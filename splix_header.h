@@ -15,22 +15,24 @@
 
 #define MAP_HEIGHT 600
 #define MAP_WIDTH 600
+
 #define SERVER_IP "127.0.0.1" //"140.113.66.205"
+#define SERVER_PORT 12345
 
 // size of windows
+#define HEIGHT_INIT_WIN 50
+#define WIDTH_INIT_WIN 100
+
 #define HEIGHT_GAME_WIN 50
 #define WIDTH_GAME_WIN 100
 
-#define HEIGHT_INIT_WIN 50
-#define WIDTH_INIT_WIN 100
 #define name_length 20
 #define id_length 4
 
-#define acc_time 50
-#define cool_time 50
+#define acc_time 40
+#define cool_time 40
 #define speed 170000
 
-#define SERVER_PORT 12345
 #define BUFFER_SIZE 1024
 
 enum GameStatus
@@ -45,6 +47,7 @@ enum Mode
 {
     NORMAL,
     FAST,
+    SLOW
 };
 
 // id allocate by server
@@ -168,8 +171,15 @@ class Initial_Window : public Window
 {
 public:
     void Rendertitle();
-    void Show_Rules();
+    void Show_Instruction();
     Initial_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
+};
+
+class Rule_Window : public Window
+{
+public:
+    Rule_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
+    void Show_Rules();
 };
 
 class Input_Window : public Window
@@ -191,9 +201,6 @@ public:
 
 class Status_Window : public Window
 {
-protected:
-    int score = 0;
-
 public:
     void update_status(int coordinate_y, int coordinate_x, const char *mode, int id);
     void update_timer(int remain_time, int cooldown);
@@ -225,7 +232,6 @@ public:
 
 class Create_Room_Window : public Window
 {
-
 public:
     Create_Room_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void Render_create_room();
@@ -256,11 +262,6 @@ public:
     void Render_room();
     void inside_room(std::vector<std::string> member_info, int room_id);
 };
-class Room_ID_Window : public Window
-{
-public:
-    Room_ID_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
-};
 
 class Chat_Window : public Window
 {
@@ -281,7 +282,7 @@ public:
     int sockfd;
     struct sockaddr_in servaddr;
     void udp_connect();
-    void send_server_position(int coordinate_y, int coordinate_x, int id);
+    void send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode);
     int get_id_from_server();
     std::pair<int, int> get_position_from_server();
 };
@@ -299,5 +300,4 @@ public:
     void receive_member_info(std::vector<std::string> &member_info);
     void send_start();
 };
-
 #endif
