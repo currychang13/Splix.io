@@ -1,7 +1,6 @@
 #include "splix_header.h"
 
-#define DEBUG
-
+// #define DEBUG
 // colors
 #define COLOR_CORAL 15
 #define COLOR_PURPLE 16
@@ -10,40 +9,95 @@
 #define COLOR_GRAY 19
 
 int map[MAP_HEIGHT][MAP_WIDTH];
-Mode mode = Mode::NORMAL;
-int id = 19;
+int pipefd[2];
+Player player;
+
+void *listen_to_server(void *arg)
+{
+    int sockfd = *(int *)arg;
+    char buffer[BUFFER_SIZE];
+    struct sockaddr_in from_addr;
+    socklen_t from_len = sizeof(from_addr);
+
+    while (1)
+    {
+        ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer) - 1, 0,
+                                          (struct sockaddr *)&from_addr, &from_len);
+        if (bytes_received > 0)
+        {
+            buffer[bytes_received] = '\0';
+            write(pipefd[1], buffer, bytes_received + 1);
+        }
+        else if (bytes_received == 0)
+        {
+            printf("Connection closed by server.\n");
+            break;
+        }
+        else
+        {
+            perror("recvfrom error");
+            break;
+        }
+    }
+    pthread_exit(NULL);
+}
 
 bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 {
     nodelay(game_win->win, TRUE);
     keypad(game_win->win, TRUE);
     setlocale(LC_ALL, "");
-    // Initialize context
-    std::pair<int, int> direction = {0, 1};
-    int coordinate_x = rand() % (MAP_WIDTH - 20);
-    int coordinate_y = rand() % (MAP_HEIGHT - 20);
-    int acceleration_timer = acc_time;
-    int cooldown_timer = 0;
-    mode = Mode::NORMAL;
-    int frame_time = speed;
+#ifndef DEBUG
+    pthread_t server_thread;
 
+    // udp setup
+    UdpContent udp;
+    udp.udp_connect();
+
+    // thread setup
+    if (pthread_create(&server_thread, NULL, listen_to_server, &udp.sockfd) != 0)
+    {
+        perror("Failed to create server listener thread");
+        return false;
+    }
+    char pipe_buffer[BUFFER_SIZE];
+    char message[BUFFER_SIZE];
+#endif
+
+#ifndef DEBUG
+    std::pair<int, int> position = udp.get_position_from_server();
+    player.init(position, {0, 1}, udp.get_id_from_server(), Mode::NORMAL, acc_time, 0, 0);
+#endif
+#ifdef DEBUG
+    player.init({rand() % (MAP_HEIGHT - 20), rand() % (MAP_WIDTH - 20)}, {0, 1}, 9, Mode::NORMAL, acc_time, 0, 0);
+    game_win->id = player.id;
+
+#endif
     game_win->draw();
-    game_win->create_initial_territory(coordinate_y, coordinate_x);
-    game_win->render_game(coordinate_y, coordinate_x);
+    game_win->create_initial_territory(player.coordinate_y, player.coordinate_x);
+    game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
     stat_win->draw();
-    stat_win->update_status(coordinate_y, coordinate_x, "NORMAL");
-
+    stat_win->update_status(player.coordinate_y, player.coordinate_x, "NORMAL", player.id);
     // Start the ticker
     GameTicker ticker_normal(10);
     GameTicker ticker_fast(30);
 
     while (true)
     {
-        if ((mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
-            (mode == Mode::FAST && ticker_fast.is_tick_due()))
+#ifndef DEBUG
+        ssize_t bytes_read = read(pipefd[0], pipe_buffer, sizeof(pipe_buffer) - 1);
+
+        if (bytes_read > 0)
         {
+            pipe_buffer[bytes_read] = '\0';
+        }
+#endif
+        if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
+            (player.mode == Mode::FAST && ticker_fast.is_tick_due()))
+        {
+            //update_alter_map();
             int ch = wgetch(game_win->win);
-            std::pair<int, int> new_direction = direction;
+            std::pair<int, int> new_direction = player.direction;
             flushinp();
             if (ch != ERR)
             {
@@ -51,7 +105,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 switch (ch)
                 {
                 case 'q':
-                    wattroff(game_win->win, COLOR_PAIR(id) | A_BOLD);
+                    wattroff(game_win->win, COLOR_PAIR(player.id) | A_BOLD);
                     game_win->exit_game(1);
                     return false;
                 case 'w':
@@ -71,68 +125,65 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                     new_direction = {0, 1};
                     break;
                 case 'f':
-                    if (mode == Mode::FAST)
+                    if (player.mode == Mode::FAST)
                     {
-                        mode = Mode::NORMAL;
-                        frame_time = speed;
+                        player.mode = Mode::NORMAL;
                     }
-                    else if (cooldown_timer == 0)
+                    else if (player.cooldown_timer == 0)
                     {
-                        mode = Mode::FAST;
-                        frame_time = speed / 3;
-                        if (acceleration_timer == 0)
-                            acceleration_timer = acc_time;
+                        player.mode = Mode::FAST;
+                        if (player.acceleration_timer == 0)
+                            player.acceleration_timer = acc_time;
                     }
                     break;
                 default:
                     break;
                 }
-                if (new_direction.first != -direction.first &&
-                    new_direction.second != -direction.second)
+                if (new_direction.first != -player.direction.first &&
+                    new_direction.second != -player.direction.second)
                 {
-                    direction = new_direction;
+                    player.direction = new_direction;
                 }
             }
 
             // Handle timers
-            if (mode == Mode::FAST && acceleration_timer > 0)
+            if (player.mode == Mode::FAST && player.acceleration_timer > 0)
             {
-                acceleration_timer--; // Decrement timer
-                if (acceleration_timer == 0)
+                player.acceleration_timer--; // Decrement timer
+                if (player.acceleration_timer == 0)
                 {
-                    mode = Mode::NORMAL;
-                    frame_time = speed;
-                    cooldown_timer = cool_time;
+                    player.mode = Mode::NORMAL;
+                    player.cooldown_timer = cool_time;
                 }
             }
-            if (mode == Mode::NORMAL && acceleration_timer > 0 && acceleration_timer < acc_time)
+            if (player.mode == Mode::NORMAL && player.acceleration_timer > 0 && player.acceleration_timer < acc_time)
             {
-                acceleration_timer++;
+                player.acceleration_timer++;
             }
-            else if (cooldown_timer > 0)
+            else if (player.cooldown_timer > 0)
             {
-                cooldown_timer--; // Decrement cooldown timer
-                if (cooldown_timer == 0)
+                player.cooldown_timer--; // Decrement cooldown timer
+                if (player.cooldown_timer == 0)
                 {
-                    acceleration_timer = acc_time;
+                    player.acceleration_timer = acc_time;
                 }
             }
 
             // Update position
-            coordinate_y += direction.first;
-            coordinate_x += direction.second;
+            player.coordinate_y += player.direction.first;
+            player.coordinate_x += player.direction.second;
             // send to server
 
             // Check if the player dies from going out of bounds
-            if (!game_win->check_valid_position(coordinate_y, coordinate_x))
+            if (!game_win->check_valid_position(player.coordinate_y, player.coordinate_x))
             {
                 return true;
             }
 
-            // Handle territory
-            if (map[coordinate_y][coordinate_x] == -id)
+            // Handle territory(handle by server)
+            if (map[player.coordinate_y][player.coordinate_x] == -player.id)
             {
-                if (game_win->is_enclosure(coordinate_y, coordinate_x))
+                if (game_win->is_enclosure(player.coordinate_y, player.coordinate_x))
                 {
                     auto inside_points = game_win->find_inside_points();
                     game_win->fill_territory(inside_points);
@@ -140,94 +191,28 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             }
             else
             {
-                map[coordinate_y][coordinate_x] = id;
+                map[player.coordinate_y][player.coordinate_x] = player.id;
+#ifndef DEBUG
+                udp.send_server_position(player.coordinate_y, player.coordinate_x, player.id);
+#endif
             }
 
-            // Render and update status
-            game_win->render_game(coordinate_y, coordinate_x);
-            stat_win->update_status(coordinate_y, coordinate_x,
-                                    mode == Mode::FAST ? "BURST" : "NORMAL");
-            stat_win->update_timer(acceleration_timer, cooldown_timer);
+            game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
+            stat_win->update_status(player.coordinate_y, player.coordinate_x,
+                                    player.mode == Mode::FAST ? "BURST" : "NORMAL", player.id);
+            stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
+            wrefresh(stat_win->win);
         }
     }
+#ifndef DEBUG
+    pthread_cancel(server_thread);
+    pthread_join(server_thread, NULL);
+#endif
     return false;
 }
 
-int connect_to_server()
-{
-    int sockfd;
-    struct sockaddr_in servaddr;
-
-    // Create socket
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
-    // Initialize server address
-    bzero(&servaddr, sizeof(servaddr));                       // Clear struct
-    servaddr.sin_family = AF_INET;                            // IPv4
-    servaddr.sin_port = htons(12345);                         // Server port (convert to network byte order)
-    inet_pton(AF_INET, "140.113.66.205", &servaddr.sin_addr); // Convert IP address to binary form
-
-    // Connect to server
-    connect(sockfd, (const sockaddr *)&servaddr, sizeof(servaddr));
-    return sockfd;
-}
-void send_server_name(int sockfd, const char *name)
-{
-    // add some error handling
-    write(sockfd, name, strlen(name));
-}
-std::vector<std::pair<int, int>> receive_room_info(int sockfd)
-{
-    // Receive room info from server
-    char room_number[100];
-    char room_str[100];
-    std::vector<std::pair<int, int>> room_info;
-    read(sockfd, room_number, sizeof(room_number));
-    int room_num = atoi(room_number);
-    for (int i = 0; i < room_num; i++)
-    {
-        int room_id, room_player;
-        read(sockfd, room_str, sizeof(room_str));
-        sscanf(room_str, "%d %d", &room_id, &room_player);
-        room_info.push_back({room_id, room_player});
-    }
-    return room_info;
-}
-void send_server_room(int sockfd, int room_id)
-{
-    // Send room id to server
-    char room_str[10];
-    sprintf(room_str, "%d", room_id);
-    write(sockfd, room_str, strlen(room_str));
-}
-std::vector<std::string> receive_member_info(int sockfd, int room_id)
-{
-    std::vector<std::string> member_info;
-    member_info.clear();
-
-    // send room id to server
-    char room_str[100];
-    sprintf(room_str, "%d", room_id);
-    write(sockfd, &room_str, sizeof(room_str));
-
-    // receive member info from server
-    char member_number[100];
-    char member_str[100];
-
-    read(sockfd, member_number, sizeof(member_number));
-    int member_num = atoi(member_number);
-
-    for (int i = 0; i < member_num; i++)
-    {
-        read(sockfd, member_str, sizeof(member_str));
-        member_info.push_back(member_str);
-    }
-    return member_info;
-}
 int main()
 {
-    // signal(SIGWINCH, SIG_IGN); /* ignore window size changes */
-
     setlocale(LC_ALL, "");
     initscr();
     start_color();
@@ -235,10 +220,11 @@ int main()
     cbreak();             // disable line buffering, but allow signals(ctrl+c, ctrl+z, etc.)
     keypad(stdscr, TRUE); // enable function keys, arrow keys, etc. stdscr is the default window
     init_color(COLOR_GRAY, 500, 500, 500);
-    // init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple (RGB: 80%, 40%, 90%)
+    init_color(COLOR_PURPLE, 800, 400, 900);   // Light Purple (RGB: 80%, 40%, 90%)
     init_color(COLOR_TEAL, 200, 700, 700);     // Light Teal (RGB: 0%, 50%, 50%)
     init_color(COLOR_CORAL, 1000, 500, 400);   // Coral
     init_color(COLOR_DEEPGRAY, 300, 300, 300); // Dark Gray
+    init_color(COLOR_WHITE, 1000, 1000, 1000); // White
 
     init_pair(0, COLOR_BLACK, -1);
     init_pair(1, COLOR_RED, -1);
@@ -279,13 +265,24 @@ int main()
     {
         std::vector<std::pair<int, int>> room_info;
         std::vector<std::string> member_info;
-        int room_id;
 #ifdef DEBUG
         room_info.push_back({1, 2});
         room_info.push_back({2, 3});
+        room_info.push_back({3, 4});
+        room_info.push_back({4, 5});
+        room_info.push_back({5, 6});
+        room_info.push_back({6, 7});
+        room_info.push_back({7, 8});
+        room_info.push_back({8, 9});
+        room_info.push_back({9, 10});
+        room_info.push_back({10, 11});
+        room_info.push_back({11, 12});
+        room_info.push_back({12, 13});
+        room_info.push_back({13, 14});
+        room_info.push_back({14, 15});
+        room_info.push_back({15, 16});
         member_info.push_back("Mace6728");
         member_info.push_back("Droplet5269");
-        room_id = 1;
 #endif
         switch (status)
         {
@@ -294,10 +291,12 @@ int main()
             init_win.Rendertitle();
             input_win.draw();
             input_win.get_user_input();
+            strcpy(player.name, input_win.name);
 #ifndef DEBUG
-            sockfd = connect_to_server();
-            send_server_name(sockfd, input_win.name);
-            room_info = receive_room_info(sockfd);
+            TcpContent tcp;
+            tcp.tcp_connect();
+            tcp.send_server_name(player.name);
+            room_info = tcp.receive_room_info();
 #endif
             status = GameStatus::ROOM_SELECTION;
             break;
@@ -310,7 +309,7 @@ int main()
             {
                 status = GameStatus::INITIAL;
 #ifndef DEBUG
-                close(sockfd);
+                close(tcp.sockfd);
 #endif
                 break;
             }
@@ -322,15 +321,19 @@ int main()
                 create_win.Render_create_room();
                 cr_input_win.draw();
                 cr_input_win.get_user_input();
+#ifdef DEBUG
+                player.room_id = atoi(cr_input_win.id);
+#endif
+
 #ifndef DEBUG
-                room_id = send_server_name(sockfd, cr_input_win.name); // send id to server, if room exist, join
+                player.room_id = tcp.send_server_room_id(cr_input_win.id); // send id to server, if room exist, join
 #endif
             }
 #ifndef DEBUG
             // join a room
             else
             {
-                room_id = send_server_room(sockfd, room_info[room_win.selected_room].first);
+                player.room_id = tcp.send_server_room_id(room_info[room_win.selected_room].first);
             }
 #endif
             status = GameStatus::INSIDE_ROOM;
@@ -340,9 +343,9 @@ int main()
             room_win.draw();
             room_win.Render_room();
 #ifndef DEBUG
-            member_info = receive_memeber_info(sockfd, room_id);
+            member_info = tcp.receive_memeber_info(player.room_id); // thread
 #endif
-            room_win.inside_room(member_info, room_id);
+            room_win.inside_room(member_info, player.room_id);
             if (room_win.selected_object == member_info.size())
             {
                 status = GameStatus::GAMING;
@@ -360,7 +363,7 @@ int main()
             }
             else
             {
-                status = GameStatus::INITIAL;
+                status = GameStatus::INSIDE_ROOM;
             };
             werase(splix_win.win);
             wrefresh(splix_win.win);

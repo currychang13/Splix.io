@@ -11,7 +11,7 @@
 #include <arpa/inet.h>
 #include <string>
 #include <vector>
-#include <thread>
+#include <pthread.h>
 
 #define MAP_HEIGHT 600
 #define MAP_WIDTH 600
@@ -29,6 +29,9 @@
 #define cool_time 50
 #define speed 170000
 
+#define SERVER_PORT 12345
+#define BUFFER_SIZE 1024
+
 enum GameStatus
 {
     INITIAL,
@@ -44,10 +47,24 @@ enum Mode
 };
 
 // id allocate by server
-extern int id;
 extern int map[MAP_HEIGHT][MAP_WIDTH];
-extern Mode mode;
-// classes
+extern int alter[MAP_HEIGHT][MAP_WIDTH];
+extern int id;
+class Player
+{
+public:
+    int coordinate_x;
+    int coordinate_y;
+    std::pair<int, int> direction;
+    int id;
+    int room_id;
+    char name[name_length] = "";
+    int score = 0;
+    Mode mode = Mode::NORMAL;
+    int acceleration_timer = acc_time;
+    int cooldown_timer = 0;
+    void init(std::pair<int, int> position, std::pair<int, int> direction, int id, Mode mode, int acceleration_timer, int cooldown_timer, int score);
+};
 
 class GameTicker
 {
@@ -176,7 +193,7 @@ protected:
     int score = 0;
 
 public:
-    void update_status(int coordinate_y, int coordinate_x, const char *mode);
+    void update_status(int coordinate_y, int coordinate_x, const char *mode, int id);
     void update_timer(int remain_time, int cooldown);
     Status_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
 };
@@ -184,9 +201,10 @@ public:
 class Splix_Window : public Window
 {
 public:
+    int id;
     Splix_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void create_initial_territory(int coordinate_y, int coordinate_x);
-    void render_game(int coordinate_y, int coordinate_x);
+    void render_game(int coordinate_y, int coordinate_x, Mode mode);
     void exit_game(int flag);
     bool is_enclosure(int coordinate_y, int coordinate_x);
     std::vector<std::pair<int, int>> find_inside_points();
@@ -243,15 +261,28 @@ public:
     void render_gameover();
 };
 
-struct GameContext
+class UdpContent
 {
-    Splix_Window *game_win;
-    Status_Window *stat_win;
-    std::pair<int, int> direction;
-    int coordinate_x, coordinate_y;
-    int acceleration_timer, cooldown_timer;
-    Mode mode;
-    useconds_t frame_time;
-    bool is_die;
+public:
+    int sockfd;
+    struct sockaddr_in servaddr;
+    void udp_connect();
+    void send_server_position(int coordinate_y, int coordinate_x, int id);
+    int get_id_from_server();
+    std::pair<int, int> get_position_from_server();
 };
+
+class TcpContent
+{
+public:
+    int sockfd;
+    struct sockaddr_in servaddr;
+    void tcp_connect();
+    void send_server_name(char *name);
+    void send_server_room_id(int room_id);
+    int get_id_from_server();
+    std::vector<std::pair<int, int>> receive_room_info(int room_id);
+    std::vector<std::string> receive_member_info(int room_id);
+};
+
 #endif

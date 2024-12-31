@@ -1,4 +1,5 @@
 #include "splix_header.h"
+
 // Initial_Window functions
 void Initial_Window::Rendertitle()
 {
@@ -32,17 +33,17 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
 
     if (room_info.size() == 0)
     {
-        mvwprintw(win, 13, (width - 16) / 2, "No room here...");
+        mvwprintw(win, 11, (width - 16) / 2, "No room here...");
     }
 
     // Display all room options and the option to create a new room
     for (int i = 0; i < (int)room_info.size(); i++)
     {
         std::string room_str = "Room ID " + std::to_string(room_info[i].first) + ": " + std::to_string(room_info[i].second) + " players in the room";
-        mvwprintw(win, 2 * i + 15, (width - room_str.length()) / 2, "%s", room_str.c_str());
+        mvwprintw(win, 2 * i + 13, (width - room_str.length()) / 2, "%s", room_str.c_str());
     }
-    mvwprintw(win, 2 * room_info.size() + 15, (width - 18) / 2, "Create a new room");
-    mvwprintw(win, 2 * (room_info.size() + 1) + 15, (width - 16) / 2, "Return to lobby");
+    mvwprintw(win, 2 * room_info.size() + 13, (width - 18) / 2, "Create a new room");
+    mvwprintw(win, 2 * (room_info.size() + 1) + 13, (width - 16) / 2, "Return to lobby");
 
     bool selected = false;
     selected_room = 0;
@@ -52,14 +53,14 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
     {
         wattron(win, A_REVERSE);
         std::string initial_str = "Room ID " + std::to_string(room_info[0].first) + ": " + std::to_string(room_info[0].second) + " players in the room";
-        mvwprintw(win, 15, (width - initial_str.length()) / 2, "%s", initial_str.c_str());
+        mvwprintw(win, 13, (width - initial_str.length()) / 2, "%s", initial_str.c_str());
         wattroff(win, A_REVERSE);
         wrefresh(win);
     }
     else
     {
         wattron(win, A_REVERSE);
-        mvwprintw(win, 15, (width - 16) / 2, "Create a new room");
+        mvwprintw(win, 13, (width - 16) / 2, "Create a new room");
         wattroff(win, A_REVERSE);
         wrefresh(win);
     }
@@ -71,15 +72,15 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
         if (selected_room < room_info.size())
         {
             std::string current_str = "Room ID " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players in the room";
-            mvwprintw(win, 2 * selected_room + 15, (width - current_str.length()) / 2, "%s", current_str.c_str());
+            mvwprintw(win, 2 * selected_room + 13, (width - current_str.length()) / 2, "%s", current_str.c_str());
         }
         else if (selected_room == room_info.size())
         {
-            mvwprintw(win, 2 * room_info.size() + 15, (width - 18) / 2, "Create a new room");
+            mvwprintw(win, 2 * room_info.size() + 13, (width - 18) / 2, "Create a new room");
         }
         else
         {
-            mvwprintw(win, 2 * (room_info.size() + 1) + 15, (width - 16) / 2, "Return to lobby");
+            mvwprintw(win, 2 * (room_info.size() + 1) + 13, (width - 16) / 2, "Return to lobby");
         }
 
         if (ch == KEY_UP)
@@ -100,19 +101,19 @@ void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
         {
             wattron(win, A_REVERSE);
             std::string new_str = "Room ID " + std::to_string(room_info[selected_room].first) + ": " + std::to_string(room_info[selected_room].second) + " players in the room";
-            mvwprintw(win, 2 * selected_room + 15, (width - new_str.length()) / 2, "%s", new_str.c_str());
+            mvwprintw(win, 2 * selected_room + 13, (width - new_str.length()) / 2, "%s", new_str.c_str());
             wattroff(win, A_REVERSE);
         }
         else if (selected_room == room_info.size())
         {
             wattron(win, A_REVERSE);
-            mvwprintw(win, 2 * room_info.size() + 15, (width - 18) / 2, "Create a new room");
+            mvwprintw(win, 2 * room_info.size() + 13, (width - 18) / 2, "Create a new room");
             wattroff(win, A_REVERSE);
         }
         else
         {
             wattron(win, A_REVERSE);
-            mvwprintw(win, 2 * (room_info.size() + 1) + 15, (width - 16) / 2, "Return to lobby");
+            mvwprintw(win, 2 * (room_info.size() + 1) + 13, (width - 16) / 2, "Return to lobby");
             wattroff(win, A_REVERSE);
         }
         wrefresh(win);
@@ -170,7 +171,7 @@ void CR_Input_Window::get_user_input()
 {
     noecho();
     keypad(win, TRUE);
-    //curs_set(1);
+    // curs_set(1);
     wmove(win, 1, 1);
     int ch, i = 0, cursor_position = 1;
     int warning = 0;
@@ -443,18 +444,15 @@ void Input_Window::get_user_input()
 }
 
 // Splix_Window functions
-void Splix_Window::render_game(int coordinate_y, int coordinate_x)
+void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode)
 {
 
-    // Determine half the window size
     int half_rows = height / 2;
     int half_cols = width / 2;
 
-    // Calculate the top-left corner of the rendering area, relative to the window
     int start_y = coordinate_y - half_rows;
     int start_x = coordinate_x - half_cols;
 
-    // Adjust the rendering area to stay within map boundaries
     if (start_y < 0)
         start_y = 0;
     if (start_x < 0)
@@ -476,9 +474,9 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
     if (coordinate_x >= MAP_WIDTH - half_cols)
         right = true;
     Custom_Blink_Border(win, up, down, left, right);
-    // Clear the window and redraw the border
+
     setlocale(LC_ALL, "");
-    // Render the visible portion of the map
+
     for (int i = 0; i < height - 2; i++)
     {
         for (int j = 0; j < width - 2; j++)
@@ -486,43 +484,38 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x)
             int map_y = start_y + i;
             int map_x = start_x + j;
 
-            // Skip out-of-bound map cells
             if (map_y < 0 || map_y >= MAP_HEIGHT || map_x < 0 || map_x >= MAP_WIDTH)
                 continue;
-
-            // Determine the character to render based on map values
-            ;
             const wchar_t *symbol;
-            if (map[map_y][map_x] == 0)
+            int value = map[map_y][map_x];
+            if (value == 0)
             {
                 symbol = L".";                // Empty space
                 wattron(win, COLOR_PAIR(19)); // Gray
             }
-            else if (map[map_y][map_x] < 0)
+            else if (value < 0)
             {
                 symbol = L"■"; // Filled territory
-                wattron(win, COLOR_PAIR(map[map_y][map_x] * -1));
+                wattron(win, COLOR_PAIR(value * -1));
             }
-            else if (map[map_y][map_x] > 0)
+            else if (value > 0)
             {
                 if (mode == Mode::FAST)
                     symbol = L"★"; // Player trail in FAST mode
                 else
                     symbol = L"▪"; // Player trail in NORMAL mode
-                wattron(win, COLOR_PAIR(map[map_y][map_x]));
+                wattron(win, COLOR_PAIR(value));
             }
-            // Render the character or cell
             if (map_y == coordinate_y && map_x == coordinate_x)
             {
                 symbol = L"◯"; // Player
             }
             mvwaddwstr(win, i + 1, j + 1, symbol);
-            wattroff(win, COLOR_PAIR(id));
+            wattroff(win, COLOR_PAIR(value * -1) | COLOR_PAIR(value));
         }
     }
-    // Refresh the window after rendering
-    wrefresh(win);
 }
+
 void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
 {
     // create initial territory
@@ -541,9 +534,7 @@ void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
                 continue;
             map[cur_y][cur_x] = -id;
         }
-    }
-    render_game(coordinate_y, coordinate_x);
-    // send map to server
+    } // send map to server
 }
 bool Splix_Window::is_enclosure(int y, int x)
 {
@@ -685,7 +676,7 @@ bool Splix_Window::check_valid_position(int coordinate_y, int coordinate_x)
     //  3. trail of the player(id), die
     //  4. out of bound, die
     // out of bound or touch the trail -> die
-    if (coordinate_y < 1 || coordinate_y >= MAP_HEIGHT || coordinate_x < 1 || coordinate_x >= MAP_WIDTH || map[coordinate_y][coordinate_x] == id)
+    if (coordinate_y < 1 || coordinate_y >= MAP_HEIGHT - 1 || coordinate_x < 1 || coordinate_x >= MAP_WIDTH - 1 || map[coordinate_y][coordinate_x] == id)
     {
         exit_game(0); // die
         return false;
@@ -715,7 +706,7 @@ void Splix_Window::exit_game(int flag)
             for (int j = 3; j >= 0; j--)
             {
                 werase(win);
-                box(win, 0, 0);
+                draw();
                 snprintf(msg, 11 - j, "Exiting...");
                 mvwprintw(win, 1, WIDTH_GAME_WIN / 2 - 4, "%s", msg);
                 wrefresh(win);
@@ -727,7 +718,7 @@ void Splix_Window::exit_game(int flag)
     else // die
     {
         werase(win);
-        box(win, 0, 0);
+        draw();
         mvwprintw(win, 1, WIDTH_GAME_WIN / 2 - 4, "You died!");
         wrefresh(win);
         sleep(2);
@@ -738,7 +729,7 @@ void Splix_Window::exit_game(int flag)
 }
 
 // Status_Window functions
-void Status_Window::update_status(int coordinate_y, int coordinate_x, const char *mode)
+void Status_Window::update_status(int coordinate_y, int coordinate_x, const char *mode, int id)
 {
     // Update the status window
     wattron(win, A_BOLD);
@@ -756,10 +747,10 @@ void Status_Window::update_status(int coordinate_y, int coordinate_x, const char
         }
     }
     mvwprintw(win, 2, 1, "Score: %d", score);
+    mvwprintw(win,3,1,"                     ");
     mvwprintw(win, 3, 1, "Position: (%d, %d)", coordinate_y, coordinate_x);
     mvwprintw(win, 4, 1, "                   ");
     mvwprintw(win, 4, 1, "Mode: %s", mode);
-    wrefresh(win);
     wattroff(win, A_BOLD);
 }
 void Status_Window::update_timer(int acceleration_timer, int cooldown_timer)
@@ -800,7 +791,6 @@ void Status_Window::update_timer(int acceleration_timer, int cooldown_timer)
 
     mvwprintw(win, 7, width - 2, "]");
     wattroff(win, COLOR_PAIR(3) | A_BOLD);
-    wrefresh(win);
 }
 
 // Gameover_Window functions
@@ -828,4 +818,126 @@ void Gameover_Window::render_gameover()
         mvwaddwstr(win, startY + i, startX, title[i]);
     wattroff(win, COLOR_PAIR(1) | A_BOLD);
     wrefresh(win);
+}
+
+// udp functions
+void UdpContent::udp_connect()
+{
+    // Create socket
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    // Initialize server address
+    bzero(&servaddr, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(SERVER_PORT);
+    inet_pton(AF_INET, "140.113.66.205", &servaddr.sin_addr);
+}
+void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id)
+{
+    char message[BUFFER_SIZE];
+    sprintf(message, "%d %d %d", id, coordinate_y, coordinate_x);
+    sendto(sockfd, message, strlen(message), 0, (struct sockaddr *)&servaddr, sizeof(servaddr));
+}
+int UdpContent::get_id_from_server()
+{
+    char message[BUFFER_SIZE];
+    int n;
+    n = recvfrom(sockfd, message, BUFFER_SIZE, 0, NULL, NULL);
+    message[n] = '\0';
+    return atoi(message);
+}
+std::pair<int, int> UdpContent::get_position_from_server()
+{
+    char message[BUFFER_SIZE];
+    int n;
+    n = recvfrom(sockfd, message, BUFFER_SIZE, 0, NULL, NULL);
+    message[n] = '\0';
+    std::pair<int, int> position;
+    sscanf(message, "%d %d", &position.first, &position.second);
+    return position;
+}
+
+// tcp functions
+void TcpContent::tcp_connect()
+{
+    // Create socket
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+    // Initialize server address
+    bzero(&servaddr, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(12345);
+    inet_pton(AF_INET, "140.113.66.205", &servaddr.sin_addr);
+
+    // Connect to server
+    connect(sockfd, (const sockaddr *)&servaddr, sizeof(servaddr));
+}
+void TcpContent::send_server_name(char *name)
+{
+    int n;
+    if ((n = write(sockfd, name, strlen(name))) < 0)
+    {
+        perror("write");
+        exit(1);
+    }
+}
+void TcpContent::send_server_room_id(int room_id)
+{
+    char room_str[10];
+    sprintf(room_str, "%d", room_id);
+    write(sockfd, room_str, strlen(room_str));
+}
+std::vector<std::pair<int, int>> TcpContent::receive_room_info(int room_id)
+{
+    // Receive room info from server
+    char room_number[100];
+    char room_str[100];
+    std::vector<std::pair<int, int>> room_info;
+    read(sockfd, room_number, sizeof(room_number));
+    int room_num = atoi(room_number);
+    for (int i = 0; i < room_num; i++)
+    {
+        int room_id, room_player;
+        read(sockfd, room_str, sizeof(room_str));
+        sscanf(room_str, "%d %d", &room_id, &room_player);
+        room_info.push_back({room_id, room_player});
+    }
+    return room_info;
+}
+std::vector<std::string> TcpContent::receive_member_info(int room_id)
+{
+    std::vector<std::string> member_info;
+    member_info.clear();
+
+    // send room id to server
+    char room_str[100];
+    sprintf(room_str, "%d", room_id);
+    write(sockfd, &room_str, sizeof(room_str));
+
+    // receive member info from server
+    char member_number[100];
+    char member_str[100];
+
+    read(sockfd, member_number, sizeof(member_number));
+    int member_num = atoi(member_number);
+
+    for (int i = 0; i < member_num; i++)
+    {
+        read(sockfd, member_str, sizeof(member_str));
+        member_info.push_back(member_str);
+    }
+    return member_info;
+}
+
+// player functions
+void Player::init(std::pair<int, int> position, std::pair<int, int> direction, int id, Mode mode, int acceleration_timer, int cooldown_timer, int score)
+{
+    coordinate_x = position.second;
+    coordinate_y = position.first;
+    this->direction = direction;
+    this->id = id;
+    this->mode = mode;
+    this->acceleration_timer = acceleration_timer;
+    this->cooldown_timer = cooldown_timer;
+    this->score = score;
 }
