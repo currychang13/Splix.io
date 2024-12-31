@@ -360,6 +360,9 @@ int main()
             else if (room_win.selected_object == member_info.size() + 1)
             {
                 status = GameStatus::ROOM_SELECTION;
+#ifndef DEBUG
+                tcp.send_return_to_room_selection();
+#endif
             }
             break;
         case GameStatus::GAMING:

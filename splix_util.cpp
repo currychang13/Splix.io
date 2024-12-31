@@ -23,7 +23,9 @@ void Initial_Window::Rendertitle()
     wrefresh(win);
     wattroff(win, COLOR_PAIR(1) | A_BOLD);
 }
+void Initial_Window::Show_Rules() {
 
+};
 // Room_Window functions
 void Select_Room_Window::select_room(std::vector<std::pair<int, int>> room_info)
 {
@@ -929,11 +931,6 @@ std::vector<std::string> TcpContent::receive_member_info(int room_id)
     std::vector<std::string> member_info;
     member_info.clear();
 
-    // send room id to server
-    char room_str[100];
-    sprintf(room_str, "%d", room_id);
-    write(sockfd, &room_str, sizeof(room_str));
-
     // receive member info from server
     char member_number[100];
     char member_str[100];
@@ -948,7 +945,12 @@ std::vector<std::string> TcpContent::receive_member_info(int room_id)
     }
     return member_info;
 }
-
+void TcpContent::send_return_to_room_selection()
+{
+    char message[100];
+    sprintf(message, "Return to Room Selection");
+    write(sockfd, message, strlen(message));
+}
 // player functions
 void Player::init(std::pair<int, int> position, std::pair<int, int> direction, int id, Mode mode, int acceleration_timer, int cooldown_timer, int score)
 {
