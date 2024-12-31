@@ -280,7 +280,6 @@ public:
     void tcp_connect();
     void send_server_name(char *name);
     void send_server_room_id(int room_id);
-    int get_id_from_server();
     std::vector<std::pair<int, int>> receive_room_info(int room_id);
     std::vector<std::string> receive_member_info(int room_id);
 };

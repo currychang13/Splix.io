@@ -95,7 +95,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
             (player.mode == Mode::FAST && ticker_fast.is_tick_due()))
         {
-            //update_alter_map();
+            // update_alter_map();
             int ch = wgetch(game_win->win);
             std::pair<int, int> new_direction = player.direction;
             flushinp();
@@ -296,7 +296,7 @@ int main()
             TcpContent tcp;
             tcp.tcp_connect();
             tcp.send_server_name(player.name);
-            room_info = tcp.receive_room_info();
+            room_info = tcp.receive_room_info(player.room_id);
 #endif
             status = GameStatus::ROOM_SELECTION;
             break;
@@ -321,19 +321,16 @@ int main()
                 create_win.Render_create_room();
                 cr_input_win.draw();
                 cr_input_win.get_user_input();
-#ifdef DEBUG
                 player.room_id = atoi(cr_input_win.id);
-#endif
 
 #ifndef DEBUG
-                player.room_id = tcp.send_server_room_id(cr_input_win.id); // send id to server, if room exist, join
+                tcp.send_server_room_id(atoi(cr_input_win.id)); // send id to server, if room exist, join
 #endif
             }
 #ifndef DEBUG
-            // join a room
             else
             {
-                player.room_id = tcp.send_server_room_id(room_info[room_win.selected_room].first);
+                tcp.send_server_room_id(room_info[room_win.selected_object].first);
             }
 #endif
             status = GameStatus::INSIDE_ROOM;
@@ -343,7 +340,7 @@ int main()
             room_win.draw();
             room_win.Render_room();
 #ifndef DEBUG
-            member_info = tcp.receive_memeber_info(player.room_id); // thread
+            member_info = tcp.receive_member_info(player.room_id); // thread
 #endif
             room_win.inside_room(member_info, player.room_id);
             if (room_win.selected_object == member_info.size())

@@ -747,7 +747,7 @@ void Status_Window::update_status(int coordinate_y, int coordinate_x, const char
         }
     }
     mvwprintw(win, 2, 1, "Score: %d", score);
-    mvwprintw(win,3,1,"                     ");
+    mvwprintw(win, 3, 1, "                     ");
     mvwprintw(win, 3, 1, "Position: (%d, %d)", coordinate_y, coordinate_x);
     mvwprintw(win, 4, 1, "                   ");
     mvwprintw(win, 4, 1, "Mode: %s", mode);
@@ -883,7 +883,7 @@ void TcpContent::send_server_name(char *name)
 }
 void TcpContent::send_server_room_id(int room_id)
 {
-    char room_str[10];
+    char room_str[100];
     sprintf(room_str, "%d", room_id);
     write(sockfd, room_str, strlen(room_str));
 }
