@@ -22,6 +22,7 @@
 #define SA struct sockaddr
 
 class GameManager;
+void *playerThreadFunction(void *args);
 
 // Define client states
 enum class ClientState
@@ -103,14 +104,13 @@ class Server
 public:
     Server(int port);
     void run();
-
+    GameManager *gameManager;
     pthread_mutex_t &getGameMutex()
     {
         gameMutex = PTHREAD_MUTEX_INITIALIZER;
         return gameMutex;
     }
     std::map<int, ClientInfo> clients; // Map to store client info keyed by file descriptor
-    GameManager *gameManager;          // Pointer to GameManager
     int listenfd;
     int maxfd;
     fd_set allset;
@@ -134,19 +134,17 @@ private:
 class GameManager
 {
 public:
-    GameManager(Server *serverInstance) {};
-
+    GameManager(Server *serverInstance);
     bool isGameActive(int roomId);
-    void initializeGameState(int roomId);
+    void initializeGameState(int roomId, int clientFd);
     void addPlayerToGame(int roomId, int clientFd);
-    bool isEnclosure(int y, int x, int roo);
-    std::vector<std::pair<int, int>> findInsidePoints(int roomId);
-    void fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId);
+    bool isEnclosure(int y, int x, int roomId, int clientFd);
+    std::vector<std::pair<int, int>> findInsidePoints(int roomId, int clientFd);
+    void fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId, int clientFd);
     void handlePlayerLogic(int roomId, int clientFd, const std::string &message);
     void handlePlayerDeath(int roomId, int clientFd);
     void handlePlayerDisconnection(int roomId, int clientFd);
-    Server *server; // Pointer back to Server
-    Player player;
+    Server *server;                      // Pointer back to Server
     std::map<int, GameState> gameStates; // roomId -> GameState
     void updateAllPlayers(int roomId);
     void checkPlayerDeaths(int roomId);
@@ -155,6 +153,8 @@ public:
 
 private:
 };
+GameManager::GameManager(Server *serverInstance)
+    : server(serverInstance) {}
 
 // Implementation of RoomManager Methods
 void Server::sendRoomInfo(int clientFd, Server &server)
@@ -245,99 +245,21 @@ void Server::joinRoom(int roomId, int clientFd, Server &server)
     }
 }
 
-void GameManager::initializeGameState(int roomId)
+void GameManager::initializeGameState(int roomId, int clientFd)
 {
     std::cout << "Initializing game state for room " << roomId << std::endl;
 
     // Create a new GameState
     GameState gameState;
     gameState.roomId = roomId;
-    player.playerId = gameState.nextPlayerId;
 
     // Store the game state
     gameStates[roomId] = gameState;
 }
 
-void *playerThreadFunction(void *args)
-{
-
-    PlayerThreadArgs *Playerargs = (PlayerThreadArgs *)args;
-    char buffer[1024];
-
-    // 1. Create a UDP socket
-    int udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
-    if (udpSocket < 0)
-    {
-        perror("UDP socket creation failed");
-        // Handle error appropriately (e.g., notify client, cleanup)
-        return nullptr;
-    }
-
-    // 2. Bind the UDP socket to an available port
-    struct sockaddr_in servaddr, cliaddr;
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = (INADDR_ANY);
-    servaddr.sin_port = htons(Playerargs->udpPort++); // Let the system choose the port
-
-    if (bind(udpSocket, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
-    {
-        perror("UDP socket bind failed");
-        close(udpSocket);
-        // Handle error appropriately
-        return nullptr;
-    }
-
-    // 3. Retrieve the assigned port number
-    socklen_t len = sizeof(servaddr);
-    if (getsockname(udpSocket, (struct sockaddr *)&servaddr, &len) == -1)
-    {
-        perror("getsockname failed");
-        close(udpSocket);
-        // Handle error appropriately
-        return nullptr;
-    }
-
-    int assignedPort = ntohs(servaddr.sin_port);
-    std::cout << "UDP connection established for Client FD " << Playerargs->clientFd << " on port " << assignedPort << "\n";
-    cliaddr = Playerargs->gameManager->server->clients[Playerargs->roomId].clientAddr;
-
-    std::string position = std::to_string(Playerargs->gameManager->player.y) + std::to_string(Playerargs->gameManager->player.x);
-    sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, sizeof(cliaddr));
-    while (true)
-    {
-        socklen_t clilen = sizeof(cliaddr);
-        ssize_t bytesRead = recvfrom(Playerargs->clientFd, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&cliaddr, &clilen);
-        if (bytesRead <= 0)
-        {
-            if (bytesRead < 0)
-            {
-                perror("read error in playerThreadFunction");
-            }
-            else
-            {
-                std::cout << "Client FD " << Playerargs->clientFd << " disconnected.\n";
-            }
-
-            // Handle player disconnection
-            Playerargs->gameManager->handlePlayerDisconnection(Playerargs->roomId, Playerargs->clientFd);
-            close(Playerargs->clientFd);
-            return nullptr;
-        }
-
-        buffer[bytesRead] = '\0';
-        std::string message(buffer);
-
-        // Handle the received message
-        Playerargs->gameManager->handlePlayerLogic(Playerargs->roomId, Playerargs->clientFd, message);
-    }
-}
-
 void GameManager::addPlayerToGame(int roomId, int clientFd)
 {
-    pthread_mutex_lock(&server->getGameMutex());
-
-    auto &gameState = gameStates[roomId]; // bug
+    auto &gameState = gameStates[roomId]; //
 
     Player player(clientFd, gameState.nextPlayerId, 0, 0, {0, 1});
 
@@ -361,7 +283,7 @@ void GameManager::addPlayerToGame(int roomId, int clientFd)
 
     player.x = start_x;
     player.y = start_y;
-
+    std::cout << player.y << " " << player.x << "\n";
     // Assign the player's ID to the map
     gameState.map[player.y][player.x] = playerId;
 
@@ -410,8 +332,82 @@ void GameManager::addPlayerToGame(int roomId, int clientFd)
     pthread_detach(playerThread); // Detach the thread to allow independent execution
 
     std::cout << "Player ID " << playerId << " (Client FD " << clientFd << ") added to Room " << roomId << "\n";
+}
 
-    pthread_mutex_unlock(&server->getGameMutex());
+void *playerThreadFunction(void *args)
+{
+
+    PlayerThreadArgs *Playerargs = (PlayerThreadArgs *)args;
+    char buffer[1024];
+
+    // 1. Create a UDP socket
+    int udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
+    if (udpSocket < 0)
+    {
+        perror("UDP socket creation failed");
+        // Handle error appropriately (e.g., notify client, cleanup)
+        return nullptr;
+    }
+
+    // 2. Bind the UDP socket to an available port
+    struct sockaddr_in servaddr, cliaddr;
+    memset(&servaddr, 0, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = (INADDR_ANY);
+    servaddr.sin_port = htons(Playerargs->udpPort++); // Let the system choose the port
+
+    if (bind(udpSocket, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+    {
+        perror("UDP socket bind failed");
+        close(udpSocket);
+        // Handle error appropriately
+        return nullptr;
+    }
+
+    // 3. Retrieve the assigned port number
+    socklen_t len = sizeof(servaddr);
+    if (getsockname(udpSocket, (struct sockaddr *)&servaddr, &len) == -1)
+    {
+        perror("getsockname failed");
+        close(udpSocket);
+        // Handle error appropriately
+        return nullptr;
+    }
+
+    int assignedPort = ntohs(servaddr.sin_port);
+    std::cout << "UDP connection established for Client FD " << Playerargs->clientFd << " on port " << assignedPort << "\n";
+    cliaddr = Playerargs->gameManager->server->clients[Playerargs->clientFd].clientAddr;
+
+    std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].x);
+    std::cout << "Position " << position << " sent\n";
+    sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, sizeof(cliaddr));
+    while (true)
+    {
+        socklen_t clilen = sizeof(cliaddr);
+        ssize_t bytesRead = recvfrom(Playerargs->clientFd, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&cliaddr, &clilen);
+        if (bytesRead <= 0)
+        {
+            if (bytesRead < 0)
+            {
+                perror("read error in playerThreadFunction");
+            }
+            else
+            {
+                std::cout << "Client FD " << Playerargs->clientFd << " disconnected.\n";
+            }
+
+            // Handle player disconnection
+            Playerargs->gameManager->handlePlayerDisconnection(Playerargs->roomId, Playerargs->clientFd);
+            close(Playerargs->clientFd);
+            return nullptr;
+        }
+
+        buffer[bytesRead] = '\0';
+        std::string message(buffer);
+
+        // Handle the received message
+        Playerargs->gameManager->handlePlayerLogic(Playerargs->roomId, Playerargs->clientFd, message);
+    }
 }
 
 void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string &message)
@@ -475,10 +471,10 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
 
         if (gameState.map[y][x] == -playerId)
         {
-            if (isEnclosure(y, x, roomId))
+            if (isEnclosure(y, x, roomId, clientFd))
             {
-                auto inside_points = findInsidePoints(roomId);
-                fillTerritory(inside_points, roomId);
+                auto inside_points = findInsidePoints(roomId, clientFd);
+                fillTerritory(inside_points, roomId, clientFd);
             }
         }
         else
@@ -575,7 +571,7 @@ void GameManager::handlePlayerDisconnection(int roomId, int clientFd)
     pthread_mutex_unlock(&server->getGameMutex());
 }
 
-bool GameManager::isEnclosure(int y, int x, int roomId)
+bool GameManager::isEnclosure(int y, int x, int roomId, int clientFd)
 {
     pthread_mutex_lock(&server->getGameMutex());
     // BFS to determine if the trail forms a closed boundary
@@ -613,7 +609,7 @@ bool GameManager::isEnclosure(int y, int x, int roomId)
                 continue;
 
             // Only consider trail (`id`) and territory (`-id`)
-            if (gameStates[roomId].map[ny][nx] == player.playerId || gameStates[roomId].map[ny][nx] == -player.playerId)
+            if (gameStates[roomId].map[ny][nx] == gameStates[roomId].players[clientFd].playerId || gameStates[roomId].map[ny][nx] == -gameStates[roomId].players[clientFd].playerId)
             {
                 visited[ny][nx] = true;
                 q.push({ny, nx});
@@ -625,7 +621,7 @@ bool GameManager::isEnclosure(int y, int x, int roomId)
     pthread_mutex_unlock(&server->getGameMutex());
     return !touches_border;
 }
-std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId)
+std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId, int clientFd)
 {
     pthread_mutex_lock(&server->getGameMutex());
     std::vector<std::vector<bool>> visited(MAP_HEIGHT, std::vector<bool>(MAP_WIDTH, false));
@@ -680,7 +676,7 @@ std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId)
             if (ny < 0 || ny >= MAP_HEIGHT || nx < 0 || nx >= MAP_WIDTH || visited[ny][nx])
                 continue;
             // other wise, mark as visited
-            if (gameStates[roomId].map[ny][nx] != player.playerId && gameStates[roomId].map[ny][nx] != -player.playerId)
+            if (gameStates[roomId].map[ny][nx] != gameStates[roomId].players[clientFd].playerId && gameStates[roomId].map[ny][nx] != -gameStates[roomId].players[clientFd].playerId)
             {
                 visited[ny][nx] = true;
                 q.push({ny, nx});
@@ -694,7 +690,7 @@ std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId)
     {
         for (int x = 1; x < MAP_WIDTH - 1; x++)
         {
-            if (!visited[y][x] && (gameStates[roomId].map[y][x] == 0 || gameStates[roomId].map[y][x] == player.playerId))
+            if (!visited[y][x] && (gameStates[roomId].map[y][x] == 0 || gameStates[roomId].map[y][x] == gameStates[clientFd].players[clientFd].playerId))
             {
                 inside_points.push_back({y, x});
             }
@@ -704,12 +700,12 @@ std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId)
     pthread_mutex_unlock(&server->getGameMutex());
     return inside_points;
 }
-void GameManager::fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId)
+void GameManager::fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId, int clientFd)
 {
     pthread_mutex_lock(&server->getGameMutex());
     for (const auto &[y, x] : inside_points)
     {
-        gameStates[roomId].map[y][x] = -player.playerId; // Mark as filled territory
+        gameStates[roomId].map[y][x] = -gameStates[roomId].players[clientFd].playerId; // Mark as filled territory
     }
     pthread_mutex_unlock(&server->getGameMutex());
 }
@@ -787,7 +783,8 @@ void GameManager::endGame(int roomId)
 // Implementation of Server Methods
 Server::Server(int port)
     : listenfd(-1), maxfd(-1),
-      nextUserId(1)
+      nextUserId(1), 
+      gameManager(new GameManager(this))
 {
     FD_ZERO(&allset);
     setupServer(port);
@@ -920,23 +917,54 @@ void Server::broadcastMessage(const std::string &message, int exclude_fd)
 void Server::processMessage(int clientFd)
 {
     char recvline[MAXLINE];
+    memset(&recvline, 0, sizeof(recvline));
     ssize_t n = read(clientFd, recvline, MAXLINE - 1);
-    std::cout << "Client sent " << recvline << "\n";
+    std::cout << "Client sent: " << recvline << "\n";
     if (n <= 0)
+{
+    // Handle client disconnect
+    auto clientIt = clients.find(clientFd);
+    if (clientIt != clients.end())
     {
-        // Handle client disconnect
-        if (clients.find(clientFd) != clients.end())
-        {
-            std::cout << "Client " << clients[clientFd].username << " disconnected." << std::endl;
-            close(clientFd);
-            FD_CLR(clientFd, &allset);
-            clients.erase(clientFd);
+        std::cout << "Client " << clientIt->second.username << " disconnected." << std::endl;
 
-            // Optionally, notify others in the room
-            // ... (Implement if needed)
+        int roomId = clientIt->second.roomId;
+
+        // Close and remove the client
+        close(clientFd);
+        FD_CLR(clientFd, &allset);
+        clients.erase(clientIt);
+
+        // If the client was in a room, remove them from the room
+        if (roomId != -1)
+        {
+            auto roomIt = rooms.find(roomId);
+            if (roomIt != rooms.end())
+            {
+                // Remove clientFd from room's clientFd vector
+                roomIt->second.clientFd.erase(
+                    std::remove(roomIt->second.clientFd.begin(), roomIt->second.clientFd.end(), clientFd),
+                    roomIt->second.clientFd.end());
+
+                // Optionally remove username from room's usernames vector
+                roomIt->second.usernames.erase(
+                    std::remove(roomIt->second.usernames.begin(), roomIt->second.usernames.end(), clientIt->second.username),
+                    roomIt->second.usernames.end());
+
+                // If the room is empty, erase the room
+                if (roomIt->second.clientFd.empty())
+                {
+                    rooms.erase(roomIt);
+                    std::cout << "Room " << roomId << " has been cleared as it has no more clients.\n";
+                }
+            }
         }
-        return;
+
+        // Optionally, notify others in the room
+        // ... (Implement if needed)
     }
+    return;
+}
     recvline[n] = '\0';
     std::string message(recvline);
 
@@ -959,10 +987,6 @@ void Server::processMessage(int clientFd)
 
     case ClientState::WAITING_START:
         handleStartCommand(clientFd, message);
-        break;
-
-    case ClientState::PLAYING_GAME:
-        // Delegate game-related messages to GameManager
         break;
 
     default:
@@ -1036,7 +1060,7 @@ void Server::handleStartCommand(int clientFd, const std::string &message)
 
     clients[clientFd].state = ClientState::PLAYING_GAME;
 
-    gameManager->initializeGameState(roomId); // bug
+    gameManager->initializeGameState(roomId, clientFd); // bug
     gameManager->addPlayerToGame(roomId, clientFd);
 
     std::cout << "Client FD " << clientFd << " started game in Room " << roomId << "\n";
