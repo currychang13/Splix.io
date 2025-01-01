@@ -59,8 +59,6 @@ void *listen_to_server(void *arg)
             pthread_mutex_lock(&queue_mutex);
             message_queue.push(std::string(buffer));
             pthread_mutex_unlock(&queue_mutex);
-            FILE *fp = fopen("log.txt", "r+");
-            fprintf(fp, "Received: %s\n", buffer);
         }
         else if (bytes_received == 0)
         {
@@ -88,6 +86,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     std::pair<int, int> position = udp.get_position_from_server();
     player.init(position, {0, 1}, udp.get_id_from_server(), Mode::NORMAL, acc_time, 0, 0);
     game_win->id = player.id;
+
     pthread_t server_thread;
     if (pthread_create(&server_thread, NULL, listen_to_server, &udp.sockfd) != 0)
     {
@@ -130,7 +129,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             Mode mode;
             head = unbox(cur_str, mode);
             game_win->render_game(head.first, head.second, mode);
-            FILE *fp = fopen("log.txt", "a");
+            FILE *fp = fopen("log.txt", "w+");
             fprintf(fp, "y = %d, x = %d\n", head.first, head.second);
         }
 #endif

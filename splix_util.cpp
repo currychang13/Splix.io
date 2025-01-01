@@ -778,7 +778,7 @@ std::vector<std::pair<int, int>> Splix_Window::find_inside_points()
     {
         for (int x = 1; x < MAP_WIDTH - 1; x++)
         {
-            if (!visited[y][x] && (map[y][x] >= 0)) //(map[y][x] == 0 || map[y][x] == id)
+            if (!visited[y][x] && (map[y][x] != -id)) //(map[y][x] == 0 || map[y][x] == id)
             {
                 inside_points.push_back({y, x});
             }
