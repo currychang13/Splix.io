@@ -291,9 +291,9 @@ void GameManager::addPlayerToGame(int roomId, int clientFd)
     gameState.map[player.y][player.x] = playerId;
 
     // Mark the surrounding 8 cells as the player's territory (-playerId)
-    for (int dy = -1; dy <= 1; ++dy)
+    for (int dy = -2; dy <= 2; ++dy)
     {
-        for (int dx = -1; dx <= 1; ++dx)
+        for (int dx = -2; dx <= 2; ++dx)
         {
             int new_x = player.x + dx;
             int new_y = player.y + dy;
