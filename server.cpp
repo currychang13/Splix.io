@@ -144,9 +144,9 @@ public:
     bool isEnclosure(int y, int x, int roomId, int clientFd);
     std::vector<std::pair<int, int>> findInsidePoints(int roomId, int clientFd);
     void fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId, int clientFd);
-    void handlePlayerLogic(int roomId, int clientFd, const std::string &message);
+    void handlePlayerLogic(int roomId, int clientFd, const std::string &message, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket);
     void handlePlayerDeath(int roomId, int clientFd);
-    void handlePlayerDisconnection(int roomId, int clientFd);
+    void handlePlayerDisconnection(int roomId, int clientFd, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket);
     Server *server;                      // Pointer back to Server
     std::map<int, GameState> gameStates; // roomId -> GameState
     void updateAllPlayers(int roomId);
@@ -391,10 +391,11 @@ void *playerThreadFunction(void *args)
     std::string id = std::to_string(Playerargs->playerId) + "\n";
     sendto(udpSocket, id.c_str(), id.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::cout << "PlayerId " << id << " sent\n";
+    // std::queue<std::string> q;
     while (true)
     {
         socklen_t clilen = sizeof(cliaddr);
-        ssize_t bytesRead = recvfrom(Playerargs->clientFd, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&cliaddr, &clilen);
+        ssize_t bytesRead = recvfrom(udpSocket, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&cliaddr, &clilen);
         std::cout << buffer << "\n";
         if (bytesRead <= 0)
         {
@@ -408,26 +409,34 @@ void *playerThreadFunction(void *args)
             }
 
             // Handle player disconnection
-            Playerargs->gameManager->handlePlayerDisconnection(Playerargs->roomId, Playerargs->clientFd);
+            Playerargs->gameManager->handlePlayerDisconnection(Playerargs->roomId, Playerargs->clientFd, (struct sockaddr *)&cliaddr, clilen, udpSocket);
             close(Playerargs->clientFd);
             return nullptr;
         }
 
         buffer[bytesRead] = '\0';
         std::string message(buffer);
+        if (message == "leave")
+        {
+            Playerargs->gameManager->handlePlayerDisconnection(Playerargs->roomId, Playerargs->clientFd, (struct sockaddr *)&cliaddr, clilen, udpSocket);
+            close(Playerargs->clientFd);
+            return nullptr;
+        }
 
         // Handle the received message
-        Playerargs->gameManager->handlePlayerLogic(Playerargs->roomId, Playerargs->clientFd, message);
+        Playerargs->gameManager->handlePlayerLogic(Playerargs->roomId, Playerargs->clientFd, message, (struct sockaddr *)&cliaddr, clilen, udpSocket);
     }
 }
 
-void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string &message)
+void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string &message, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket)
 {
     pthread_mutex_lock(&server->getGameMutex());
 
     std::istringstream iss(message);
     int y, x;
-    if (!(iss >> y >> x))
+    std::string mode;
+
+    if (!(iss >> y >> x >> mode))
     {
         std::cerr << "Invalid message format from client FD " << clientFd << "\n";
         pthread_mutex_unlock(&server->getGameMutex());
@@ -468,12 +477,8 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
             if (occupantFd != -1)
             {
                 // Send "DIE" message to the occupant player
-                std::string dieMsg = "DIE\n";
-                if (write(occupantFd, dieMsg.c_str(), dieMsg.length()) < 0)
-                {
-                    perror("Failed to send DIE message to occupant player");
-                }
-
+                std::string dieMsg = "die";
+                sendto(udpSocket, dieMsg.c_str(), dieMsg.length(), 0, cliaddr, clilen);
                 // Handle occupant player's death without disconnecting TCP
                 handlePlayerDeath(roomId, occupantFd);
                 std::cout << "Player ID " << occupantPlayerId << " (Client FD " << occupantFd
@@ -499,6 +504,7 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
             gameState.map[y][x] = playerId;
         }
         // Check if the map is modified by other player threads
+        std::map<int, std::string> yx;
         for (int i = 0; i < MAP_HEIGHT; ++i)
         {
             for (int j = 0; j < MAP_WIDTH; ++j)
@@ -506,10 +512,15 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
                 if (gameState.map[i][j] != 0 && gameState.map[i][j] != playerId && gameState.map[i][j] != -playerId)
                 {
                     // Send the difference position by that cell player ID
-                    std::string diffMsg = "DIFF " + std::to_string(i) + " " + std::to_string(j) + " " + std::to_string(gameState.map[i][j]) + "\n";
-                    write(clientFd, diffMsg.c_str(), diffMsg.length());
+                    yx[gameState.map[i][j]] += std::to_string(y) + " " + std::to_string(x);
+                    +" ";
                 }
             }
+        }
+        for (const auto &[id, positions] : yx)
+        {
+            std::string diffMsg = std::to_string(id) + " " + mode + " " + positions + "\n";
+            sendto(udpSocket, diffMsg.c_str(), diffMsg.length(), 0, cliaddr, clilen);
         }
     }
 
@@ -559,22 +570,12 @@ void GameManager::handlePlayerDeath(int roomId, int clientFd)
     server->clients[clientFd].state = ClientState::WAITING_START;
 
     std::cout << "Player ID " << playerId << " (Client FD " << clientFd
-              << ") has been reset to WAITING_START.\n";
-
-    // Optionally, notify the player about their death
-    std::string deadMsg = "YOU_DIED\n";
-    if (write(clientFd, deadMsg.c_str(), deadMsg.length()) < 0)
-    {
-        perror("Failed to send YOU_DIED message to client");
-    }
-
-    // Optionally, reset player position or other attributes
-    // ...
+              << ") died.\n";
 
     pthread_mutex_unlock(&server->getGameMutex());
 }
 
-void GameManager::handlePlayerDisconnection(int roomId, int clientFd)
+void GameManager::handlePlayerDisconnection(int roomId, int clientFd, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket)
 {
     pthread_mutex_lock(&server->getGameMutex());
 
@@ -585,16 +586,32 @@ void GameManager::handlePlayerDisconnection(int roomId, int clientFd)
         // Clear the player's path and territory from the map
         gameState.map[it->second.y][it->second.x] = 0;
 
-        // Optionally, remove surrounding territory or handle game-specific logic
-        // ...
+        // Set all the cells on the map of that playerId or -playerId to 0
+        for (int y = 0; y < MAP_HEIGHT; ++y)
+        {
+            for (int x = 0; x < MAP_WIDTH; ++x)
+            {
+                if (gameState.map[y][x] == it->second.playerId || gameState.map[y][x] == -it->second.playerId)
+                {
+                    gameState.map[y][x] = 0;
+                }
+            }
+        }
+
+        // Notify other players about the disconnection
+        std::string notifyMsg = "Player " + std::to_string(it->second.playerId) + " has disconnected or die.\n";
 
         std::cout << "Player ID " << it->second.playerId << " (Client FD " << clientFd << ") disconnected from Room " << roomId << "\n";
 
         // Remove player from the game state
         gameState.players.erase(it);
 
-        // Optionally, notify other players in the room
-        std::string notifyMsg = "Player " + std::to_string(it->second.playerId) + " has disconnected.\n";
+        // Reset UDP connection information
+        server->clients[clientFd].udpFd = -1;
+        server->clients[clientFd].udpAddrSet = false;
+
+        // Set client state to WAITING_START
+        server->clients[clientFd].state = ClientState::WAITING_START;
     }
 
     pthread_mutex_unlock(&server->getGameMutex());
