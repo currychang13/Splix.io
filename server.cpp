@@ -533,27 +533,17 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
     }
     else
     {
-        // Check if the map is modified by other player threads
+        // modified position
         yx[playerId] += std::to_string(y) + " " + std::to_string(x) + " ";
         gameState.map[y][x] = playerId;
     }
+
     for (const auto &[id, positions] : yx)
     {
         diffMsg = std::to_string(id) + " " + mode + " " + positions;
     }
-    std::cout << "sent to client: " << diffMsg << "\n";
-    // Broadcast diffMsg and dieMsg to other connected UDP clients
-    for (const auto &[otherFd, otherPlayer] : gameState.players)
-    {
-        std::cout << otherFd << "\n";
-        if (otherFd != udpSocket)
-        {
-            // Send diffMsg
-            sendto(otherFd, diffMsg.c_str(), diffMsg.length(), 0, gameState.players[otherFd].addr, gameState.players[otherFd].len);
-            std::cout << "Sent to FD " << otherFd << ": " << diffMsg << "\n";
-        }
-    }
 
+    broadcastMessage(diffMsg, udpSocket, roomId);
     // Update the map with the player's ID
     gameState.map[y][x] = playerId;
 
@@ -961,7 +951,8 @@ void Server::broadcastMessage(const std::string &message, int exclude_fd)
     {
         if (fd != exclude_fd)
         {
-            write(fd, message.c_str(), message.length());
+            sendto(udpSocket, message.c_str(), message.length(), 0, gameStates[roomId].players[otherFd].addr, gameStates[roomId].players[otherFd].len);
+            std::cout << "Send broadcast Message to " << udpSocket << ": " << message;
         }
     }
 }
