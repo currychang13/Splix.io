@@ -386,7 +386,32 @@ void *playerThreadFunction(void *args)
     // send Id
     sendto(udpSocket, id.c_str(), id.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::cout << "PlayerId " << id << " sent\n";
-    // std::queue<std::string> q;
+
+    std::map<int, std::string> tmp;
+
+    //send initial map to new game player-----------------------------------
+    for (int i = 0; i < MAP_WIDTH; ++i)
+    {
+        for (int j = 0; j < MAP_HEIGHT; ++j)
+        {
+            if (gameState.map[i][j] != 0)
+            {
+                int k = gameState.map[i][j];
+                tmp[k] += std::to_string(i) + " " + std::to_string(j) + " ";
+            }
+        }
+    }
+
+    for (const auto &[id, positions] : tmp)
+    {
+        std::string t;
+        t = std::to_string(id) + " " + "NORMAL" + " " + positions;
+        std::cout << t << "\n";
+        sendto(udpSocket, t.c_str(), t.length(), 0, (struct sockaddr *)&cliaddr, clilen);
+    }
+    //-----------------------------------------------------------------
+
+
     while (true)
     {
         socklen_t clilen = sizeof(cliaddr);
@@ -510,7 +535,7 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
     {
         diffMsg = std::to_string(id) + " " + mode + " " + positions;
     }
-    std::cout << "sent to client: " <<diffMsg << "\n";
+    std::cout << "sent to client: " << diffMsg << "\n";
     // Broadcast diffMsg and dieMsg to other connected UDP clients
     for (const auto &[otherFd, otherPlayer] : gameState.players)
     {
