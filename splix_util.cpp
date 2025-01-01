@@ -575,6 +575,11 @@ void Input_Window::get_user_input()
 }
 
 // Splix_Window functions
+void Splix_Window::initialize_buffer()
+{
+    previous_map = std::vector<std::vector<int>>(MAP_HEIGHT, std::vector<int>(MAP_WIDTH, 0));
+}
+
 void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode)
 {
     int half_rows = height / 2;
@@ -639,7 +644,6 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode)
             wattroff(win, COLOR_PAIR(color_pair));
         }
     }
-    wrefresh(win);
 }
 
 void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
@@ -784,7 +788,6 @@ std::vector<std::pair<int, int>> Splix_Window::find_inside_points()
             }
         }
     }
-
     return inside_points;
 }
 void Splix_Window::fill_territory(const std::vector<std::pair<int, int>> &inside_points)

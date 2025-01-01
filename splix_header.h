@@ -16,8 +16,8 @@
 #include <fstream>
 #include <map>
 
-#define MAP_HEIGHT 100
-#define MAP_WIDTH 100
+#define MAP_HEIGHT 600
+#define MAP_WIDTH 600
 
 #define SERVER_IP "127.0.0.1" //"140.113.66.205"
 
@@ -218,6 +218,7 @@ class Splix_Window : public Window
 {
 public:
     int id;
+    std::vector<std::vector<int>> previous_map;
     Splix_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void create_initial_territory(int coordinate_y, int coordinate_x);
     void render_game(int coordinate_y, int coordinate_x, Mode mode);
@@ -226,6 +227,7 @@ public:
     std::vector<std::pair<int, int>> find_inside_points();
     void fill_territory(const std::vector<std::pair<int, int>> &inside_points);
     bool check_valid_position(int coordinate_y, int coordinate_x);
+    void initialize_buffer();
 };
 
 class Select_Room_Window : public Window

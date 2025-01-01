@@ -102,9 +102,8 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
     game_win->draw();
     game_win->create_initial_territory(player.coordinate_y, player.coordinate_x);
+    game_win->initialize_buffer();
     game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
-    wrefresh(game_win->win);
-
     stat_win->draw();
     stat_win->update_status(player.coordinate_y, player.coordinate_x, "NORMAL", player.id);
     stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
@@ -249,7 +248,9 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
             game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
             stat_win->update_status(player.coordinate_y, player.coordinate_x,
-                                    (player.mode == Mode::FAST) ? "BURST" : "NORMAL", player.id);
+                                    (player.mode == Mode::FAST) ? "BURST" : (player.mode == Mode::NORMAL) ? "NORMAL"
+                                                                                                          : "SLOW",
+                                    player.id);
             stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
             wrefresh(stat_win->win);
         }

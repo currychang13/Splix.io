@@ -61,3 +61,6 @@ splix_client
 
 # Makefile
 Makefile
+
+# Log
+log.txt
