@@ -14,8 +14,9 @@ UdpContent udp;
 std::vector<std::pair<int, int>> room_info;
 std::vector<std::string> member_info;
 std::queue<std::string> message_queue;
+pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for queue
 
-std::pair<int, int> unbox(std::string str, Mode &mode) // id mode head_x head_y x y x y x y
+std::pair<int, int> unbox(std::string str, Mode &mode) // value mode head_x head_y x y x y x y
 {
     std::stringstream ss(str);
     std::string token;
@@ -55,7 +56,10 @@ void *listen_to_server(void *arg)
         if (bytes_received > 0)
         {
             buffer[bytes_received] = '\0';
+            pthread_mutex_lock(&queue_mutex);
             message_queue.push(std::string(buffer));
+            pthread_mutex_lock(&queue_mutex);
+
             printf("Received message: %s\n", buffer);
         }
         else if (bytes_received == 0)
@@ -77,11 +81,13 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     nodelay(game_win->win, TRUE);
     keypad(game_win->win, TRUE);
     setlocale(LC_ALL, "");
+    message_queue = std::queue<std::string>();
 
 #ifndef DEBUG
     udp.udp_connect();
     std::pair<int, int> position = udp.get_position_from_server();
     player.init(position, {0, 1}, udp.get_id_from_server(), Mode::NORMAL, acc_time, 0, 0);
+
     pthread_t server_thread;
     if (pthread_create(&server_thread, NULL, listen_to_server, &udp.sockfd) != 0)
     {
@@ -108,11 +114,13 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     while (true)
     {
 #ifndef DEBUG
-
+        pthread_mutex_lock(&queue_mutex);
         if (!message_queue.empty())
         {
             std::string cur_str = message_queue.front();
             message_queue.pop();
+            pthread_mutex_unlock(&queue_mutex);
+
             std::pair<int, int> head;
             Mode mode;
             head = unbox(cur_str, mode);
@@ -210,11 +218,15 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             // Update position
             player.coordinate_y += player.direction.first;
             player.coordinate_x += player.direction.second;
+
             // send to server
             udp.send_server_position(player.coordinate_y, player.coordinate_x, player.id, player.mode);
+
             // Check if the player dies from going out of bounds
-            if (!game_win->check_valid_position(player.coordinate_y, player.coordinate_x))
+            if (player.coordinate_y < 1 || player.coordinate_y >= MAP_HEIGHT - 1 || player.coordinate_x < 1 || player.coordinate_x >= MAP_WIDTH - 1 || map[player.coordinate_y][player.coordinate_x] == player.id)
             {
+                udp.send_leave_game();
+                game_win->exit_game(0); // die
                 return true;
             }
             // Handle territory and update map
@@ -229,7 +241,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             }
             else
                 map[player.coordinate_y][player.coordinate_x] = player.id;
-            
+
             game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
             stat_win->update_status(player.coordinate_y, player.coordinate_x,
                                     (player.mode == Mode::FAST) ? "BURST" : "NORMAL", player.id);
