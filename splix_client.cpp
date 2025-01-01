@@ -28,19 +28,18 @@ std::pair<int, int> unbox(std::string str, Mode &mode, int &value) // value mode
     ss >> token;
     mode = token == "FAST" ? Mode::FAST : Mode::NORMAL;
 
-    ss >> token;
     int head_x, head_y;
+    getline(ss, token, ' ');
     head_y = std::stoi(token);
-
-    ss >> token;
+    getline(ss, token, ' ');
     head_x = std::stoi(token);
-
     map[head_y][head_x] = value;
 
-    while (ss >> tokenY >> tokenX)
+    while (std::getline(ss, token, ' '))
     {
-        int y = std::stoi(tokenY);
-        int x = std::stoi(tokenX);
+        int x = std::stoi(token);
+        std::getline(ss, token, ' ');
+        int y = std::stoi(token);
         map[y][x] = value;
     }
     return {head_y, head_x};
@@ -85,14 +84,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     setlocale(LC_ALL, "");
     message_queue = std::queue<std::string>();
 
-    for (int i = 0; i < MAP_HEIGHT; i++)
-    {
-        for (int j = 0; j < MAP_WIDTH; j++)
-        {
-            map[i][j] = 0;
-        }
-    }
-
 #ifndef DEBUG
     udp.udp_connect();
     std::pair<int, int> position = udp.get_position_from_server();
@@ -114,6 +105,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
     game_win->draw();
     game_win->create_initial_territory(player.coordinate_y, player.coordinate_x);
+    game_win->initialize_buffer();
     game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode, player, player.id);
     stat_win->draw();
     stat_win->update_status(player.coordinate_y, player.coordinate_x, "NORMAL", player.id);
