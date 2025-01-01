@@ -148,8 +148,7 @@ public:
     std::vector<std::pair<int, int>> findInsidePoints(int roomId, int clientFd);
     void fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId, int clientFd);
     void handlePlayerLogic(int roomId, int clientFd, const std::string &message, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket);
-    void handlePlayerDeath(int roomId, int clientFd);
-    void handlePlayerDisconnection(int roomId, int clientFd, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket);
+    void handlePlayerDeath(int roomId, int udpSocket, int clientFd);
     Server *server;                      // Pointer back to Server
     std::map<int, GameState> gameStates; // roomId -> GameState
     std::queue<std::string> q;
@@ -407,7 +406,7 @@ void *playerThreadFunction(void *args)
             }
 
             // Handle player disconnection
-            Playerargs->gameManager->handlePlayerDisconnection(Playerargs->roomId, Playerargs->clientFd, (struct sockaddr *)&cliaddr, clilen, udpSocket);
+            Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
             close(Playerargs->clientFd);
             return nullptr;
         }
@@ -416,13 +415,13 @@ void *playerThreadFunction(void *args)
         std::string message(buffer);
         if (message == "leave")
         {
-            Playerargs->gameManager->handlePlayerDisconnection(Playerargs->roomId, Playerargs->clientFd, (struct sockaddr *)&cliaddr, clilen, udpSocket);
+            Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
             close(Playerargs->clientFd);
             return nullptr;
         }
 
         // Handle the received message
-        Playerargs->gameManager->handlePlayerLogic(Playerargs->roomId, udpSocket, message, (struct sockaddr *)&cliaddr, clilen, udpSocket);
+        Playerargs->gameManager->handlePlayerLogic(Playerargs->roomId, Playerargs->clientFd, message, (struct sockaddr *)&cliaddr, clilen, udpSocket);
     }
 }
 
@@ -442,10 +441,10 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
         return;
     }
     auto &gameState = gameStates[roomId];
-    auto playerIt = gameState.players.find(clientFd);
+    auto playerIt = gameState.players.find(udpSocket);
     if (playerIt == gameState.players.end())
     {
-        std::cerr << "Player not found for client FD " << clientFd << "\n";
+        std::cerr << "Player not found for client FD " << udpSocket << "\n";
         std::string errorMsg = "ERROR Player not found\n";
         write(clientFd, errorMsg.c_str(), errorMsg.length());
         pthread_mutex_unlock(&server->getGameMutex());
@@ -479,7 +478,7 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
                 // Send "DIE" message to the occupant player
                 sendto(udpSocket, dieMsg.c_str(), dieMsg.length(), 0, cliaddr, clilen);
                 // Handle occupant player's death without disconnecting TCP
-                handlePlayerDeath(roomId, occupantFd);
+                handlePlayerDeath(roomId, occupantFd, clientFd);
                 std::cout << "Player ID " << occupantPlayerId << " (Client FD " << occupantFd
                           << ") has been killed by Player ID " << playerId << "\n";
             }
@@ -534,7 +533,7 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
     pthread_mutex_unlock(&server->getGameMutex());
 }
 
-void GameManager::handlePlayerDeath(int roomId, int udpSocket)
+void GameManager::handlePlayerDeath(int roomId, int udpSocket, int clientFd)
 {
     // Ensure thread safety
     pthread_mutex_lock(&server->getGameMutex());
@@ -584,55 +583,16 @@ void GameManager::handlePlayerDeath(int roomId, int udpSocket)
     // Reset UDP connection information
     server->clients[udpSocket].udpFd = -1;
     server->clients[udpSocket].udpAddrSet = false;
-
+    // Remove player from the game state
+    gameState.players.erase(playerIt);
     // Set client state to WAITING_START
-    server->clients[udpSocket].state = ClientState::WAITING_START;
+    server->clients[udpSocket]
+        .state = ClientState::WAITING_START;
 
     std::cout << "Player ID " << playerId << " (Client FD " << udpSocket
               << ") died.\n";
-
-    pthread_mutex_unlock(&server->getGameMutex());
-}
-
-void GameManager::handlePlayerDisconnection(int roomId, int clientFd, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket)
-{
-    pthread_mutex_lock(&server->getGameMutex());
-
-    auto &gameState = gameStates[roomId];
-    auto it = gameState.players.find(clientFd);
-    if (it != gameState.players.end())
-    {
-        // Clear the player's path and territory from the map
-        gameState.map[it->second.y][it->second.x] = 0;
-
-        // Set all the cells on the map of that playerId or -playerId to 0
-        for (int y = 0; y < MAP_HEIGHT; ++y)
-        {
-            for (int x = 0; x < MAP_WIDTH; ++x)
-            {
-                if (gameState.map[y][x] == it->second.playerId || gameState.map[y][x] == -it->second.playerId)
-                {
-                    gameState.map[y][x] = 0;
-                }
-            }
-        }
-
-        // Notify other players about the disconnection
-        std::string notifyMsg = "Player " + std::to_string(it->second.playerId) + " has disconnected or die.\n";
-
-        std::cout << "Player ID " << it->second.playerId << " (Client FD " << clientFd << ") disconnected from Room " << roomId << "\n";
-
-        // Remove player from the game state
-        gameState.players.erase(it);
-
-        // Reset UDP connection information
-        server->clients[clientFd].udpFd = -1;
-        server->clients[clientFd].udpAddrSet = false;
-
-        // Set client state to WAITING_START
-        server->clients[clientFd].state = ClientState::WAITING_START;
-    }
-
+    // Set client state to WAITING_START
+    server->clients[clientFd].state = ClientState::WAITING_START;
     pthread_mutex_unlock(&server->getGameMutex());
 }
 
