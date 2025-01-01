@@ -723,7 +723,7 @@ std::vector<std::pair<int, int>> Splix_Window::find_inside_points()
     {
         for (int j : {0, MAP_WIDTH - 1})
         {
-            if (map[i][j] != 0 /*&& map[i][j] != id*/)
+            if (map[i][j] != 0)
             {
                 visited[i][j] = true; // Mark borders and filled territory
             }
@@ -738,7 +738,7 @@ std::vector<std::pair<int, int>> Splix_Window::find_inside_points()
     {
         for (int i : {0, MAP_HEIGHT - 1})
         {
-            if (map[i][j] != 0 /*&& map[i][j] != id*/)
+            if (map[i][j] != 0)
             {
                 visited[i][j] = true; // Mark borders and filled territory
             }
@@ -778,7 +778,7 @@ std::vector<std::pair<int, int>> Splix_Window::find_inside_points()
     {
         for (int x = 1; x < MAP_WIDTH - 1; x++)
         {
-            if (!visited[y][x] && (map[y][x] == 0 || map[y][x] == id))
+            if (!visited[y][x] && (map[y][x] >= 0)) //(map[y][x] == 0 || map[y][x] == id)
             {
                 inside_points.push_back({y, x});
             }

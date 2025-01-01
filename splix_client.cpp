@@ -59,6 +59,8 @@ void *listen_to_server(void *arg)
             pthread_mutex_lock(&queue_mutex);
             message_queue.push(std::string(buffer));
             pthread_mutex_unlock(&queue_mutex);
+            FILE *fp = fopen("log.txt", "r+");
+            fprintf(fp, "Received: %s\n", buffer);
         }
         else if (bytes_received == 0)
         {
@@ -128,7 +130,8 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             Mode mode;
             head = unbox(cur_str, mode);
             game_win->render_game(head.first, head.second, mode);
-            std::cerr << "head: " << head.first << " " << head.second << std::endl;
+            FILE *fp = fopen("log.txt", "a");
+            fprintf(fp, "y = %d, x = %d\n", head.first, head.second);
         }
 #endif
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
