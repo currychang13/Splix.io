@@ -512,7 +512,6 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
         for (const auto &[id, positions] : yx)
         {
             diffMsg = std::to_string(id) + " " + mode + " " + std::to_string(y) + " " + std::to_string(x) + positions;
-            std::cout << diffMsg << "\n";
         }
 
         // Broadcast diffMsg and dieMsg to other connected UDP clients
