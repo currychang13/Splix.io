@@ -220,7 +220,6 @@ void CR_Input_Window::get_user_input()
 {
     noecho();
     keypad(win, TRUE);
-    // curs_set(1);
     wmove(win, 1, 1);
     int ch, i = 0, cursor_position = 1;
     int warning = 0;
@@ -230,11 +229,20 @@ void CR_Input_Window::get_user_input()
         ch = wgetch(win);
         if (ch == '\n')
         {
+            if (strlen(id) == 0)
+            {
+                wattron(win, COLOR_PAIR(18) | A_BOLD);
+                mvwprintw(win, 1, 1, "Can't enter empty room id");
+                wattroff(win, COLOR_PAIR(18) | A_BOLD);
+                wrefresh(win);
+                warning = 1;
+                continue;
+            }
             break;
         }
         if (i == 0)
         {
-            mvwprintw(win, 1, 1, "                ");
+            mvwprintw(win, 1, 1, "                         ");
         }
         if (ch == KEY_BACKSPACE)
         {
@@ -256,6 +264,7 @@ void CR_Input_Window::get_user_input()
 
             if (cursor_position <= 1)
             {
+                mvwprintw(win, 1, 1, "                         ");
                 mvwprintw(win, 1, 1, "Enter room id");
                 wmove(win, 1, 1);
             }
@@ -265,7 +274,7 @@ void CR_Input_Window::get_user_input()
         {
             if (warning)
             {
-                mvwprintw(win, 1, 1, "                     ");
+                mvwprintw(win, 1, 1, "                          ");
                 mvwprintw(win, 1, 1, "%s", id);
                 warning = 0;
             }
@@ -297,7 +306,7 @@ void CR_Input_Window::get_user_input()
         }
         else if (i < id_length && isdigit(ch))
         {
-            mvwprintw(win, 1, 1, "                      ");
+            mvwprintw(win, 1, 1, "                          ");
             i++; // Increase string length
             // Insert the character at the cursor position
             for (int j = i; j >= cursor_position - 1; j--)
@@ -432,18 +441,27 @@ void Input_Window::get_user_input()
     noecho(); // enable displaying input
     keypad(win, TRUE);
     wmove(win, 1, 1);
-    int ch, i = 0, cursor_position = 1;
+    int ch, i = 0, cursor_position = 1, warning = 0;
     memset(name, 0, name_length);
     while (true)
     {
         ch = wgetch(win);
         if (ch == '\n')
         {
+            if (strlen(name) == 0)
+            {
+                wattron(win, COLOR_PAIR(18) | A_BOLD);
+                mvwprintw(win, 1, 1, "Can't enter empty name");
+                wattroff(win, COLOR_PAIR(18) | A_BOLD);
+                wrefresh(win);
+                warning = 1;
+                continue;
+            }
             break;
         }
         if (i == 0)
         {
-            mvwprintw(win, 1, 1, "                ");
+            mvwprintw(win, 1, 1, "                         ");
         }
         if (ch == KEY_BACKSPACE)
         {
@@ -465,6 +483,7 @@ void Input_Window::get_user_input()
 
             if (cursor_position <= 1)
             {
+                mvwprintw(win, 1, 1, "                         ");
                 mvwprintw(win, 1, 1, "Enter your name");
                 wmove(win, 1, 1);
             }
@@ -472,22 +491,32 @@ void Input_Window::get_user_input()
         }
         if (ch == KEY_LEFT || ch == KEY_RIGHT || ch == KEY_UP || ch == KEY_DOWN)
         {
-            switch (ch)
+            if (warning)
             {
-            case KEY_LEFT:
-                if (cursor_position > 1)
-                    --cursor_position;
-                break;
-            case KEY_RIGHT:
-                if (cursor_position <= (int)strlen(name))
-                    ++cursor_position;
-                break;
-            default:
-                break;
+                mvwprintw(win, 1, 1, "                         ");
+                mvwprintw(win, 1, 1, "%s", name);
+                warning = 0;
+            }
+            else
+            {
+                switch (ch)
+                {
+                case KEY_LEFT:
+                    if (cursor_position > 1)
+                        --cursor_position;
+                    break;
+                case KEY_RIGHT:
+                    if (cursor_position <= (int)strlen(name))
+                        ++cursor_position;
+                    break;
+                default:
+                    break;
+                }
             }
         }
         else if (i < name_length && isprint(ch))
         {
+            mvwprintw(win, 1, 1, "                         ");
             i++; // Increase string length
             // Insert the character at the cursor position
             for (int j = i; j >= cursor_position - 1; j--)
@@ -894,13 +923,7 @@ void UdpContent::udp_connect()
         close(sockfd);
         exit(EXIT_FAILURE);
     }
-<<<<<<< HEAD
     send(sockfd, "ack", 3, MSG_CONFIRM);
-=======
-    char sendline[100] = "ack\n";
-    send(sockfd, sendline, strlen(sendline), 0);
-    std::cerr << sockfd;
->>>>>>> c649080 (chick)
 }
 void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode)
 {
@@ -980,15 +1003,14 @@ void TcpContent::receive_member_info(std::vector<std::string> &member_info)
 {
     member_info.clear();
     // receive member info from server
-    char member_number[100] = "";
-    char member_str[100] = "";
-
+    char member_number[10] = "";
+    char member_str[20] = "";
     readline(sockfd, member_number, sizeof(member_number));
     int member_num = atoi(member_number);
-
     for (int i = 0; i < member_num; i++)
     {
-        readline(sockfd, member_str, sizeof(member_str));
+        int n = readline(sockfd, member_str, sizeof(member_str));
+        member_str[n - 1] = '\0';
         member_info.push_back(member_str);
     }
 }

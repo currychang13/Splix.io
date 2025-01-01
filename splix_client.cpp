@@ -49,11 +49,12 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     nodelay(game_win->win, TRUE);
     keypad(game_win->win, TRUE);
     setlocale(LC_ALL, "");
+    
 #ifndef DEBUG
-    pthread_t server_thread;
-
     udp.udp_connect();
-
+    std::pair<int, int> position = udp.get_position_from_server();
+    player.init(position, {0, 1}, udp.get_id_from_server(), Mode::NORMAL, acc_time, 0, 0);
+    pthread_t server_thread;
     if (pthread_create(&server_thread, NULL, listen_to_server, &udp.sockfd) != 0)
     {
         perror("Failed to create server listener thread");
@@ -61,11 +62,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     }
     char pipe_buffer[BUFFER_SIZE];
     char message[BUFFER_SIZE];
-#endif
-
-#ifndef DEBUG
-    std::pair<int, int> position = udp.get_position_from_server();
-    player.init(position, {0, 1}, udp.get_id_from_server(), Mode::NORMAL, acc_time, 0, 0);
 #endif
 
 #ifdef DEBUG
@@ -273,7 +269,7 @@ int main()
     Select_Room_Window select_room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
 
     Create_Room_Window create_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-    CR_Input_Window cr_input_win(HEIGHT_INIT_WIN / 13, WIDTH_INIT_WIN / 3, (HEIGHT_INIT_WIN - HEIGHT_INIT_WIN / 13) / 3, (COLS - WIDTH_INIT_WIN / 3) / 2);
+    CR_Input_Window cr_input_win(HEIGHT_INIT_WIN / 13, WIDTH_INIT_WIN / 3, (HEIGHT_INIT_WIN - HEIGHT_INIT_WIN / 12) / 2.5, (COLS - WIDTH_INIT_WIN / 3) / 2);
 
     Room_Window room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
 
@@ -371,6 +367,7 @@ int main()
                     create_win.Render_create_room();
                     cr_input_win.draw();
                     create_win.Show_Instruction();
+                    wrefresh(create_win.win);
                     cr_input_win.get_user_input();
                     player.room_id = atoi(cr_input_win.id);
                 }
