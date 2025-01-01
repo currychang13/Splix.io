@@ -12,6 +12,8 @@ int pipefd[2];
 Player player;
 TcpContent tcp;
 UdpContent udp;
+std::vector<std::pair<int, int>> room_info;
+std::vector<std::string> member_info;
 
 void *listen_to_server(void *arg)
 {
@@ -22,8 +24,7 @@ void *listen_to_server(void *arg)
 
     while (1)
     {
-        ssize_t bytes_received = recvfrom(sockfd, buffer, sizeof(buffer) - 1, 0,
-                                          (struct sockaddr *)&from_addr, &from_len);
+        ssize_t bytes_received = recv(sockfd, buffer, sizeof(buffer) - 1, 0);
         if (bytes_received > 0)
         {
             buffer[bytes_received] = '\0';
@@ -87,7 +88,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 #ifndef DEBUG
         ssize_t bytes_read = read(pipefd[0], pipe_buffer, sizeof(pipe_buffer) - 1);
 
-        if (bytes_read > 0)//only read one position
+        if (bytes_read > 0) // only read one position
         {
             pipe_buffer[bytes_read] = '\0';
             int move_x, move_y, id;
@@ -283,8 +284,7 @@ int main()
 
     while (true)
     {
-        std::vector<std::pair<int, int>> room_info;
-        std::vector<std::string> member_info;
+
 #ifdef DEBUG
         room_info.push_back({1, 2});
         room_info.push_back({2, 3});
@@ -315,10 +315,11 @@ int main()
         switch (status)
         {
         case GameStatus::INITIAL:
+            member_info.clear();
+            room_info.clear();
             init_win.draw();
             init_win.Rendertitle();
             init_win.Show_Instruction();
-            wrefresh(init_win.win);
             rule_win.draw();
             rule_win.Show_Rules();
             input_win.draw();
@@ -374,7 +375,8 @@ int main()
             room_win.draw();
             room_win.Render_room();
 #ifndef DEBUG
-            tcp.receive_member_info(member_info); // thread
+
+            tcp.receive_member_info(member_info);
 #endif
             room_win.inside_room(member_info, player.room_id);
             if (room_win.selected_object == member_info.size())

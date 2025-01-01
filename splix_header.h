@@ -266,12 +266,6 @@ public:
     void inside_room(std::vector<std::string> member_info, int room_id);
 };
 
-class Chat_Window : public Window
-{
-public:
-    Chat_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
-};
-
 class Gameover_Window : public Window
 {
 public:

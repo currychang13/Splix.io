@@ -338,24 +338,22 @@ void Room_Window::inside_room(std::vector<std::string> member_info, int room_id)
     nodelay(win, TRUE); // Non-blocking input
     keypad(win, TRUE);
     curs_set(0);
+
     int num_players = member_info.size();
     int half_players = (num_players + 1) / 2; // First line has half (round up)
-
-    Window Room_member_win(2 * half_players + 10, width / 1.5, 15, (COLS - width / 1.5) / 2);
-    // Calculate player display configuration
-
+    Window Room_member_win(2 * half_players + 10, width / 1.5, 17, (COLS - width / 1.5) / 2);
     int row_start = 1;
     int col_start_first = 3;
     int col_start_second = Room_member_win.width - 26;
 
-    // Display Room ID
+    // Display room ID
     std::string room_id_str = "Room " + std::to_string(room_id);
     wattron(Room_member_win.win, A_BOLD);
     mvwprintw(Room_member_win.win, row_start, 2, "%s", room_id_str.c_str());
     wattroff(Room_member_win.win, A_BOLD);
     Room_member_win.draw();
     row_start += 2;
-    // Display the players split into two lines
+
     for (int i = 0; i < num_players; ++i)
     {
         std::string player_str = "Player " + std::to_string(i + 1) + ": " + member_info[i];
@@ -365,8 +363,9 @@ void Room_Window::inside_room(std::vector<std::string> member_info, int room_id)
             row_start += 3;
         }
     }
+
     int pos_row = Room_member_win.height - 2, pos_col_first = 28, pos_col_second = pos_col_first + 13;
-    // Highlight the initial selection
+
     wattron(Room_member_win.win, A_REVERSE);
     mvwprintw(Room_member_win.win, pos_row, pos_col_first, "Enter Game");
     wattroff(Room_member_win.win, A_REVERSE);
@@ -888,6 +887,7 @@ void UdpContent::udp_connect()
         close(sockfd);
         exit(EXIT_FAILURE);
     }
+    send(sockfd, "ack", 3, MSG_CONFIRM);
 }
 void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode)
 {
@@ -907,7 +907,7 @@ std::pair<int, int> UdpContent::get_position_from_server()
 {
     char message[BUFFER_SIZE];
     int n;
-    n = recv(sockfd, message, BUFFER_SIZE,0);
+    n = recv(sockfd, message, BUFFER_SIZE, 0);
     message[n] = '\0';
     std::pair<int, int> position;
     sscanf(message, "%d %d", &position.first, &position.second);
@@ -997,6 +997,7 @@ void TcpContent::receive_port(int &port)
     readline(sockfd, port_str, sizeof(port_str));
     port = atoi(port_str);
 }
+
 // player functions
 void Player::init(std::pair<int, int> position, std::pair<int, int> direction, int id, Mode mode, int acceleration_timer, int cooldown_timer, int score)
 {
