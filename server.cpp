@@ -147,7 +147,7 @@ public:
     void handlePlayerLogic(int roomId, int clientFd, const std::string &message, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket, int playerId);
     void handlePlayerDeath(int roomId, int udpSocket, int clientFd);
     Server *server;                      // Pointer back to Server
-    static std::map<int, GameState> gameStates; // roomId -> GameState
+    std::map<int, GameState> gameStates; // roomId -> GameState
     std::queue<std::string> q;
     void updateAllPlayers(int roomId);
     void checkPlayerDeaths(int roomId);

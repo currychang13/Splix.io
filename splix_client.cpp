@@ -22,8 +22,6 @@ std::pair<int, int> unbox(std::string str, Mode &mode, int &value) // value mode
     std::string token, tokenY, tokenX;
     ss >> token;
     value = std::stoi(token);
-    // std::cerr << value;
-    // napms(2000);
 
     ss >> token;
     mode = token == "FAST" ? Mode::FAST : Mode::NORMAL;
