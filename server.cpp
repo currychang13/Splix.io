@@ -54,7 +54,7 @@ struct ClientInfo
     std::string username;
     ClientState state;
     int roomId;
-    int udpFd; // UDP socket file descriptor
+    int udpFd;       // UDP socket file descriptor
     bool udpAddrSet; // Flag to indicate if UDP address is set
 
     ClientInfo() : fd(-1), roomId(-1), udpFd(-1), udpAddrSet(false) {}
@@ -78,7 +78,6 @@ struct Player
     bool isAlive;
     Player() : isAlive(true) {}
     Player(int socket_fd, int id, int cor_x, int cor_y, std::pair<int, int> dir) : fd(socket_fd), playerId(id), x(cor_x), y(cor_y), direction(dir), isAlive(true) {}
-    
 };
 
 struct GameState
@@ -86,7 +85,7 @@ struct GameState
     int roomId;
     int map[MAP_HEIGHT][MAP_WIDTH];
     std::map<int, Player> players; // Keyed by client fd
-    static int nextPlayerId;              // Newly added field for tracking next player ID
+    static int nextPlayerId;       // Newly added field for tracking next player ID
     int PlayerId;
     GameState() : PlayerId(nextPlayerId++)
     {
@@ -396,6 +395,7 @@ void *playerThreadFunction(void *args)
     {
         socklen_t clilen = sizeof(cliaddr);
         ssize_t bytesRead = recvfrom(Playerargs->clientFd, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&cliaddr, &clilen);
+        std::cout << buffer << "\n";
         if (bytesRead <= 0)
         {
             if (bytesRead < 0)
@@ -427,6 +427,12 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
 
     std::istringstream iss(message);
     int y, x;
+    if (!(iss >> y >> x))
+    {
+        std::cerr << "Invalid message format from client FD " << clientFd << "\n";
+        pthread_mutex_unlock(&server->getGameMutex());
+        return;
+    }
     auto &gameState = gameStates[roomId];
     auto playerIt = gameState.players.find(clientFd);
     if (playerIt == gameState.players.end())
@@ -491,6 +497,19 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
         else
         {
             gameState.map[y][x] = playerId;
+        }
+        // Check if the map is modified by other player threads
+        for (int i = 0; i < MAP_HEIGHT; ++i)
+        {
+            for (int j = 0; j < MAP_WIDTH; ++j)
+            {
+                if (gameState.map[i][j] != 0 && gameState.map[i][j] != playerId && gameState.map[i][j] != -playerId)
+                {
+                    // Send the difference position by that cell player ID
+                    std::string diffMsg = "DIFF " + std::to_string(i) + " " + std::to_string(j) + " " + std::to_string(gameState.map[i][j]) + "\n";
+                    write(clientFd, diffMsg.c_str(), diffMsg.length());
+                }
+            }
         }
     }
 
@@ -793,7 +812,7 @@ void GameManager::endGame(int roomId)
 // Implementation of Server Methods
 Server::Server(int port)
     : listenfd(-1), maxfd(-1),
-      nextUserId(1), 
+      nextUserId(1),
       gameManager(new GameManager(this))
 {
     FD_ZERO(&allset);
@@ -930,50 +949,50 @@ void Server::processMessage(int clientFd)
     ssize_t n = read(clientFd, recvline, MAXLINE - 1);
     std::cout << "Client sent: " << recvline << "\n";
     if (n <= 0)
-{
-    // Handle client disconnect
-    auto clientIt = clients.find(clientFd);
-    if (clientIt != clients.end())
     {
-        std::cout << "Client " << clientIt->second.username << " disconnected." << std::endl;
-
-        int roomId = clientIt->second.roomId;
-
-        // Close and remove the client
-        close(clientFd);
-        FD_CLR(clientFd, &allset);
-        clients.erase(clientIt);
-
-        // If the client was in a room, remove them from the room
-        if (roomId != -1)
+        // Handle client disconnect
+        auto clientIt = clients.find(clientFd);
+        if (clientIt != clients.end())
         {
-            auto roomIt = rooms.find(roomId);
-            if (roomIt != rooms.end())
+            std::cout << "Client " << clientIt->second.username << " disconnected." << std::endl;
+
+            int roomId = clientIt->second.roomId;
+
+            // Close and remove the client
+            close(clientFd);
+            FD_CLR(clientFd, &allset);
+            clients.erase(clientIt);
+
+            // If the client was in a room, remove them from the room
+            if (roomId != -1)
             {
-                // Remove clientFd from room's clientFd vector
-                roomIt->second.clientFd.erase(
-                    std::remove(roomIt->second.clientFd.begin(), roomIt->second.clientFd.end(), clientFd),
-                    roomIt->second.clientFd.end());
-
-                // Optionally remove username from room's usernames vector
-                roomIt->second.usernames.erase(
-                    std::remove(roomIt->second.usernames.begin(), roomIt->second.usernames.end(), clientIt->second.username),
-                    roomIt->second.usernames.end());
-
-                // If the room is empty, erase the room
-                if (roomIt->second.clientFd.empty())
+                auto roomIt = rooms.find(roomId);
+                if (roomIt != rooms.end())
                 {
-                    rooms.erase(roomIt);
-                    std::cout << "Room " << roomId << " has been cleared as it has no more clients.\n";
+                    // Remove clientFd from room's clientFd vector
+                    roomIt->second.clientFd.erase(
+                        std::remove(roomIt->second.clientFd.begin(), roomIt->second.clientFd.end(), clientFd),
+                        roomIt->second.clientFd.end());
+
+                    // Optionally remove username from room's usernames vector
+                    roomIt->second.usernames.erase(
+                        std::remove(roomIt->second.usernames.begin(), roomIt->second.usernames.end(), clientIt->second.username),
+                        roomIt->second.usernames.end());
+
+                    // If the room is empty, erase the room
+                    if (roomIt->second.clientFd.empty())
+                    {
+                        rooms.erase(roomIt);
+                        std::cout << "Room " << roomId << " has been cleared as it has no more clients.\n";
+                    }
                 }
             }
-        }
 
-        // Optionally, notify others in the room
-        // ... (Implement if needed)
+            // Optionally, notify others in the room
+            // ... (Implement if needed)
+        }
+        return;
     }
-    return;
-}
     recvline[n] = '\0';
     std::string message(recvline);
 
