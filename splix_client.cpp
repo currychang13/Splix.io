@@ -59,8 +59,6 @@ void *listen_to_server(void *arg)
             pthread_mutex_lock(&queue_mutex);
             message_queue.push(std::string(buffer));
             pthread_mutex_lock(&queue_mutex);
-
-            printf("Received message: %s\n", buffer);
         }
         else if (bytes_received == 0)
         {
@@ -87,7 +85,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     udp.udp_connect();
     std::pair<int, int> position = udp.get_position_from_server();
     player.init(position, {0, 1}, udp.get_id_from_server(), Mode::NORMAL, acc_time, 0, 0);
-
+    game_win->id = player.id;
     pthread_t server_thread;
     if (pthread_create(&server_thread, NULL, listen_to_server, &udp.sockfd) != 0)
     {
@@ -104,8 +102,12 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     game_win->draw();
     game_win->create_initial_territory(player.coordinate_y, player.coordinate_x);
     game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
+    wrefresh(game_win->win);
+
     stat_win->draw();
     stat_win->update_status(player.coordinate_y, player.coordinate_x, "NORMAL", player.id);
+    stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
+    wrefresh(stat_win->win);
     // Start the ticker
     GameTicker ticker_slow(5);
     GameTicker ticker_normal(15);
@@ -114,9 +116,10 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     while (true)
     {
 #ifndef DEBUG
-        pthread_mutex_lock(&queue_mutex);
+
         if (!message_queue.empty())
         {
+            pthread_mutex_lock(&queue_mutex);
             std::string cur_str = message_queue.front();
             message_queue.pop();
             pthread_mutex_unlock(&queue_mutex);
@@ -125,7 +128,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             Mode mode;
             head = unbox(cur_str, mode);
             game_win->render_game(head.first, head.second, mode);
-            sleep(2);
+            std::cerr << "head: " << head.first << " " << head.second << std::endl;
         }
 #endif
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
@@ -172,7 +175,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                     }
                     break;
                 case 'g':
-                    if (player.mode == Mode::SLOW)
+                    if (player.mode == Mode::SLOW && player.cooldown_timer == 0)
                     {
                         player.mode = Mode::NORMAL;
                     }
@@ -400,7 +403,16 @@ int main()
                     create_win.Show_Instruction();
                     wrefresh(create_win.win);
                     cr_input_win.get_user_input();
-                    player.room_id = atoi(cr_input_win.id);
+                    create_win.Show_choice();
+                    if (create_win.selected_choice == 1)
+                    {
+                        player.room_id = atoi(cr_input_win.id);
+                    }
+                    else
+                    {
+                        status = GameStatus::ROOM_SELECTION;
+                        break;
+                    }
                 }
 #ifndef DEBUG
                 tcp.send_server_room_id(player.room_id); // send id to server, if room exist, join
@@ -457,7 +469,7 @@ int main()
             wrefresh(splix_win.win);
             werase(stat_win.win);
             wrefresh(stat_win.win);
-            echo(); // enable displaying input
+            echo();
             break;
 
         case GameStatus::GAME_OVER:

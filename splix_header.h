@@ -13,6 +13,8 @@
 #include <vector>
 #include <sstream>
 #include <pthread.h>
+#include <fstream>
+#include <map>
 
 #define MAP_HEIGHT 600
 #define MAP_WIDTH 600
@@ -238,9 +240,11 @@ public:
 class Create_Room_Window : public Window
 {
 public:
+    int selected_choice = 1;
     Create_Room_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void Render_create_room();
     void Show_Instruction();
+    void Show_choice();
 };
 
 class CR_Input_Window : public Input_Window

@@ -212,9 +212,48 @@ void Create_Room_Window::Render_create_room()
 void Create_Room_Window::Show_Instruction()
 {
     wattron(win, COLOR_PAIR(3) | A_BOLD | A_BLINK);
-    mvwprintw(win, 18, (WIDTH_INIT_WIN - 30) / 2, "Type RoomID and press Enter");
+    mvwprintw(win, 18, (WIDTH_INIT_WIN - 29) / 2, "Type Room ID and press Enter");
     wattroff(win, COLOR_PAIR(3) | A_BOLD | A_BLINK);
 }
+void Create_Room_Window::Show_choice()
+{
+    mvwprintw(win, 18, (WIDTH_INIT_WIN - 29) / 2, "                            ");
+    nodelay(win, TRUE);
+    keypad(win, TRUE);
+    int first_x = (WIDTH_INIT_WIN - 35) / 2;
+    int second_x = (WIDTH_INIT_WIN) / 2;
+    bool selected = false;
+    selected_choice = 1;
+    std::map<int, std::string> map_choice = {{1, "Create Room"}, {2, "Back to Room Selection"}};
+    wattron(win, A_REVERSE);
+    mvwprintw(win, 18, first_x, "Create Room");
+    wattroff(win, A_REVERSE);
+    mvwprintw(win, 18, second_x, "Back to Room Selection");
+
+    while (!selected)
+    {
+        int ch = wgetch(win);
+        std::string cur_str = map_choice[selected_choice];
+        mvwprintw(win, 18, selected_choice == 1 ? first_x : second_x, "%s", cur_str.c_str());
+        if (ch == KEY_LEFT)
+        {
+            selected_choice = (selected_choice - 1 >= 1) ? selected_choice - 1 : 1;
+        }
+        else if (ch == KEY_RIGHT)
+        {
+            selected_choice = (selected_choice + 1 <= 2) ? selected_choice + 1 : 2;
+        }
+        else if (ch == '\n')    
+        {
+            selected = true;
+        }
+        wattron(win, A_REVERSE);
+        cur_str = map_choice[selected_choice];
+        mvwprintw(win, 18, selected_choice == 1 ? first_x : second_x, "%s", cur_str.c_str());
+        wattroff(win, A_REVERSE);
+    }
+}
+
 // CR_Input_Window functions
 void CR_Input_Window::get_user_input()
 {
@@ -579,12 +618,12 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode)
             }
             else if (value < 0)
             {
-                color_pair = -value;
+                color_pair = (-1 * value) % 10;
                 symbol = L"■";
             }
             else if (value > 0)
             {
-                color_pair = value;
+                color_pair = (value % 10);
                 if (mode == Mode::FAST)
                     symbol = L"★";
                 else
@@ -607,7 +646,7 @@ void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
     // create initial territory
     // 1. create a rectangle
     // 2. fill the rectangle with the player's -id
-    // 3. send the map to the server
+
     int dx[] = {0, 1, -1, 2, -2};
     int dy[] = {1, 0, -1, 2, -2};
     for (int i = 0; i < 5; i++)
@@ -620,7 +659,7 @@ void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
                 continue;
             map[cur_y][cur_x] = -id;
         }
-    } // send map to server
+    }
 }
 bool Splix_Window::is_enclosure(int y, int x)
 {
@@ -820,6 +859,7 @@ void Status_Window::update_status(int coordinate_y, int coordinate_x, const char
     // Update the status window
     wattron(win, A_BOLD);
     mvwprintw(win, 1, 1, "Status");
+
     // get status from server
     int score = 0;
     for (int i = 0; i < MAP_HEIGHT; i++)
@@ -929,6 +969,7 @@ void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id
 {
     char message[BUFFER_SIZE] = "";
     sprintf(message, "%d %d %s", coordinate_y, coordinate_x, mode == Mode::FAST ? "FAST" : "NORMAL"); // send position, mode to server
+    napms(1);
     send(sockfd, message, strlen(message), MSG_CONFIRM);
 }
 int UdpContent::get_id_from_server()
@@ -954,7 +995,6 @@ void UdpContent::send_leave_game()
     char message[BUFFER_SIZE] = "leave";
     send(sockfd, message, strlen(message), MSG_CONFIRM);
 }
-
 
 // tcp functions
 void TcpContent::tcp_connect()
