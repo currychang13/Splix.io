@@ -21,20 +21,10 @@ std::pair<int, int> unbox(std::string str, Mode &mode, int &value) // value mode
     std::stringstream ss(str);
     std::string token, tokenY, tokenX;
     ss >> token;
-    if (token[0] == '-')
-    {
-        for (int i = 0; i < token.length() - 1; i++)
-        {
-            token[i] = token[i + 1];
-        }
-        value = (-1) * std::stoi(token);
-        std::cerr<<value;
-        napms(2000);
-    }
-    else
-    {
-        value = std::stoi(token);
-    }
+    value = std::stoi(token);
+    // std::cerr << value;
+    // napms(2000);
+
     ss >> token;
     mode = token == "FAST" ? Mode::FAST : Mode::NORMAL;
 
@@ -58,6 +48,7 @@ std::pair<int, int> unbox(std::string str, Mode &mode, int &value) // value mode
 
 void *listen_to_server(void *arg)
 {
+    pthread_detach(pthread_self());
     int sockfd = *(int *)arg;
     char buffer[BUFFER_SIZE];
     struct sockaddr_in from_addr;
@@ -147,8 +138,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             std::pair<int, int> head;
             Mode mode;
             head = unbox(cur_str, mode, id);
-            game_win->render_game(head.first, head.second, mode, player, id > 0 ? id : id == 0 ? player.id
-                                                                                               : -id);
+            game_win->render_game(head.first, head.second, mode, player, id);
         }
 #endif
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
