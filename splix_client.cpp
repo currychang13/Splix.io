@@ -17,7 +17,7 @@ std::vector<std::string> member_info;
 
 void *listen_to_server(void *arg)
 {
-    int udpsockfd = *(int *)arg;
+    int sockfd = *(int *)arg;
     char buffer[BUFFER_SIZE];
     struct sockaddr_in from_addr;
     socklen_t from_len = sizeof(from_addr);
