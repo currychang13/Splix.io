@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 #include <string>
 #include <vector>
+#include <sstream>
 #include <pthread.h>
 
 #define MAP_HEIGHT 600

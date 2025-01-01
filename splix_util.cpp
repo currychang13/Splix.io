@@ -909,21 +909,21 @@ void Gameover_Window::render_gameover()
 // udp functions
 void UdpContent::udp_connect()
 {
-    // Create socket
     sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     // Initialize server address
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(port);
-    std::cerr << port;
     inet_pton(AF_INET, SERVER_IP, &servaddr.sin_addr);
-    if (connect(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
+    if (connect(sockfd, (const sockaddr *)&servaddr, sizeof(servaddr)) < 0)
     {
         perror("Connect failed");
         close(sockfd);
         exit(EXIT_FAILURE);
     }
+    napms(1);
     send(sockfd, "ack", 3, MSG_CONFIRM);
+    // sendto(sockfd, "ack", 3, MSG_CONFIRM, (const sockaddr *)&servaddr, sizeof(servaddr));
 }
 void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode)
 {

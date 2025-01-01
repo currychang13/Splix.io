@@ -8,12 +8,39 @@
 #define COLOR_GRAY 19
 
 int map[MAP_HEIGHT][MAP_WIDTH];
-int pipefd[2];
 Player player;
 TcpContent tcp;
 UdpContent udp;
 std::vector<std::pair<int, int>> room_info;
 std::vector<std::string> member_info;
+std::queue<std::string> message_queue;
+
+std::pair<int, int> unbox(std::string str, Mode &mode) // id mode head_x head_y x y x y x y
+{
+    std::stringstream ss(str);
+    std::string token;
+    getline(ss, token, ' ');
+    int id = std::stoi(token);
+
+    getline(ss, token, ' ');
+    mode = token == "FAST" ? Mode::FAST : Mode::NORMAL;
+
+    int head_x, head_y;
+    getline(ss, token, ' ');
+    head_y = std::stoi(token);
+    getline(ss, token, ' ');
+    head_x = std::stoi(token);
+    map[head_y][head_x] = id;
+
+    while (std::getline(ss, token, ' '))
+    {
+        int x = std::stoi(token);
+        std::getline(ss, token, ' ');
+        int y = std::stoi(token);
+        map[y][x] = id;
+    }
+    return {head_y, head_x};
+}
 
 void *listen_to_server(void *arg)
 {
@@ -28,7 +55,8 @@ void *listen_to_server(void *arg)
         if (bytes_received > 0)
         {
             buffer[bytes_received] = '\0';
-            write(pipefd[1], buffer, bytes_received + 1);
+            message_queue.push(std::string(buffer));
+            printf("Received message: %s\n", buffer);
         }
         else if (bytes_received == 0)
         {
@@ -49,7 +77,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     nodelay(game_win->win, TRUE);
     keypad(game_win->win, TRUE);
     setlocale(LC_ALL, "");
-    
+
 #ifndef DEBUG
     udp.udp_connect();
     std::pair<int, int> position = udp.get_position_from_server();
@@ -60,8 +88,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
         perror("Failed to create server listener thread");
         return false;
     }
-    char pipe_buffer[BUFFER_SIZE];
-    char message[BUFFER_SIZE];
 #endif
 
 #ifdef DEBUG
@@ -82,17 +108,15 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     while (true)
     {
 #ifndef DEBUG
-        ssize_t bytes_read = read(pipefd[0], pipe_buffer, sizeof(pipe_buffer) - 1);
 
-        if (bytes_read > 0) // only read one position
+        if (!message_queue.empty())
         {
-            pipe_buffer[bytes_read] = '\0';
-            int move_x, move_y, id;
-            char mode_str[10];
-            sscanf(pipe_buffer, "%d %d %d %s", &move_y, &move_x, &id, mode_str);
-            Mode mode = mode_str == "FAST" ? Mode::FAST : Mode::NORMAL;
-            map[move_y][move_x] = id;
-            game_win->render_game(move_y, move_x, mode);
+            std::string cur_str = message_queue.front();
+            message_queue.pop();
+            std::pair<int, int> head;
+            Mode mode;
+            head = unbox(cur_str, mode);
+            game_win->render_game(head.first, head.second, mode);
         }
 #endif
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
