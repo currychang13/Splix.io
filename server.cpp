@@ -375,7 +375,7 @@ void *playerThreadFunction(void *args)
     // Assign the player's ID to the map
     gameState.map[player.y][player.x] = gameState.nextPlayerId;
     gameState.players[udpSocket] = player;
-
+    
     std::string ack(recv);
     std::cout << ack << "\n";
     std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].x) + "\n";
