@@ -379,7 +379,7 @@ void *playerThreadFunction(void *args)
 
     std::string ack(recv);
     std::cout << ack << "\n";
-    std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].x) + "\n";
+    std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].x) + "\n";
     // send position
     sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::cout << "Position " << position << " sent\n";
