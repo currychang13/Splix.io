@@ -282,44 +282,46 @@ int main()
 
     Gameover_Window gameover_win(HEIGHT_GAME_WIN, WIDTH_GAME_WIN, (LINES - HEIGHT_GAME_WIN) / 2, (COLS - WIDTH_GAME_WIN) / 2);
 
+#ifdef DEBUG
+    room_info.push_back({1, 2});
+    room_info.push_back({2, 3});
+    room_info.push_back({3, 4});
+    room_info.push_back({4, 5});
+    room_info.push_back({5, 6});
+    room_info.push_back({6, 7});
+    room_info.push_back({7, 8});
+    room_info.push_back({8, 9});
+    room_info.push_back({9, 10});
+    room_info.push_back({10, 11});
+    room_info.push_back({11, 12});
+    room_info.push_back({12, 13});
+    room_info.push_back({13, 14});
+    room_info.push_back({14, 15});
+    room_info.push_back({15, 16});
+    member_info.push_back("Mace6728");
+    member_info.push_back("Droplet5269");
+    member_info.push_back("humphrey");
+    member_info.push_back("Cubeman");
+    member_info.push_back("Mace6728");
+    member_info.push_back("Droplet5269");
+    member_info.push_back("humphrey");
+    member_info.push_back("Cubeman");
+    member_info.push_back("Mace6728");
+    member_info.push_back("Droplet5269");
+#endif
     while (true)
     {
-
-#ifdef DEBUG
-        room_info.push_back({1, 2});
-        room_info.push_back({2, 3});
-        room_info.push_back({3, 4});
-        room_info.push_back({4, 5});
-        room_info.push_back({5, 6});
-        room_info.push_back({6, 7});
-        room_info.push_back({7, 8});
-        room_info.push_back({8, 9});
-        room_info.push_back({9, 10});
-        room_info.push_back({10, 11});
-        room_info.push_back({11, 12});
-        room_info.push_back({12, 13});
-        room_info.push_back({13, 14});
-        room_info.push_back({14, 15});
-        room_info.push_back({15, 16});
-        member_info.push_back("Mace6728");
-        member_info.push_back("Droplet5269");
-        member_info.push_back("humphrey");
-        member_info.push_back("Cubeman");
-        member_info.push_back("Mace6728");
-        member_info.push_back("Droplet5269");
-        member_info.push_back("humphrey");
-        member_info.push_back("Cubeman");
-        member_info.push_back("Mace6728");
-        member_info.push_back("Droplet5269");
-#endif
         switch (status)
         {
         case GameStatus::INITIAL:
+#ifndef DEBUG
             member_info.clear();
             room_info.clear();
+#endif
             init_win.draw();
             init_win.Rendertitle();
             init_win.Show_Instruction();
+            wrefresh(init_win.win);
             rule_win.draw();
             rule_win.Show_Rules();
             input_win.draw();
@@ -331,13 +333,15 @@ int main()
 #endif
             status = GameStatus::ROOM_SELECTION;
             break;
+
         case GameStatus::ROOM_SELECTION:
+#ifndef DEBUG
+            room_info.clear();
+            tcp.receive_room_info(room_info);
+#endif
             select_room_win.clean();
             select_room_win.draw();
             select_room_win.Render_select_room();
-#ifndef DEBUG
-            tcp.receive_room_info(room_info);
-#endif
             select_room_win.select_room(room_info);
 
             if (select_room_win.selected_room == room_info.size() + 1)
@@ -371,11 +375,12 @@ int main()
 
             status = GameStatus::INSIDE_ROOM;
             break;
+
         case GameStatus::INSIDE_ROOM:
             room_win.draw();
             room_win.Render_room();
 #ifndef DEBUG
-
+            member_info.clear();
             tcp.receive_member_info(member_info);
 #endif
             room_win.inside_room(member_info, player.room_id);
@@ -391,6 +396,7 @@ int main()
 #endif
             }
             break;
+
         case GameStatus::GAMING:
             noecho();
 #ifndef DEBUG
@@ -411,6 +417,7 @@ int main()
             wrefresh(stat_win.win);
             echo(); // enable displaying input
             break;
+
         case GameStatus::GAME_OVER:
             // show game over
             curs_set(0);
