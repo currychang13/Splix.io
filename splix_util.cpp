@@ -580,7 +580,7 @@ void Splix_Window::initialize_buffer()
     previous_map = std::vector<std::vector<int>>(MAP_HEIGHT, std::vector<int>(MAP_WIDTH, 0));
 }
 
-void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode, Player player)
+void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode, Player player, int id)
 {
     int half_rows = height / 2;
     int half_cols = width / 2;
@@ -630,7 +630,7 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode, Pl
             else if (value > 0)
             {
                 color_pair = (value % 10);
-                if (mode == Mode::FAST)
+                if (mode == Mode::FAST && value == id)
                     symbol = L"★";
                 else
                     symbol = L"▪";

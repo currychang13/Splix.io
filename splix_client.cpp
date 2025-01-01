@@ -16,12 +16,12 @@ std::vector<std::string> member_info;
 std::queue<std::string> message_queue;
 pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for queue
 
-std::pair<int, int> unbox(std::string str, Mode &mode) // value mode head_x head_y x y x y x y
+std::pair<int, int> unbox(std::string str, Mode &mode, int &value) // value mode head_x head_y x y x y x y
 {
     std::stringstream ss(str);
     std::string token;
     getline(ss, token, ' ');
-    int value = std::stoi(token);
+    value = std::stoi(token);
 
     getline(ss, token, ' ');
     mode = token == "FAST" ? Mode::FAST : Mode::NORMAL;
@@ -103,7 +103,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     game_win->draw();
     game_win->create_initial_territory(player.coordinate_y, player.coordinate_x);
     game_win->initialize_buffer();
-    game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode, player);
+    game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode, player, player.id);
     stat_win->draw();
     stat_win->update_status(player.coordinate_y, player.coordinate_x, "NORMAL", player.id);
     stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
@@ -123,11 +123,13 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             std::string cur_str = message_queue.front();
             message_queue.pop();
             pthread_mutex_unlock(&queue_mutex);
-
+            int id;
             std::pair<int, int> head;
             Mode mode;
-            head = unbox(cur_str, mode);
-            game_win->render_game(player.coordinate_y, player.coordinate_x, mode, player);
+            head = unbox(cur_str, mode, id);
+
+            game_win->render_game(head.first, head.second, mode, player, id > 0 ? id : id == 0 ? player.id
+                                                                                               : -id);
         }
 #endif
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
@@ -244,7 +246,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             else
                 map[player.coordinate_y][player.coordinate_x] = player.id;
 
-            game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode, player);
+            game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode, player, player.id);
             stat_win->update_status(player.coordinate_y, player.coordinate_x,
                                     (player.mode == Mode::FAST) ? "BURST" : (player.mode == Mode::NORMAL) ? "NORMAL"
                                                                                                           : "SLOW",
