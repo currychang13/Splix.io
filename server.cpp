@@ -656,7 +656,7 @@ bool GameManager::isEnclosure(int y, int x, int roomId, int clientFd)
                 continue;
 
             // Only consider trail (`id`) and territory (`-id`)
-            if (gameStates[roomId].map[ny][nx] == gameStates[roomId].players[clientFd].playerId || gameStates[roomId].map[ny][nx] == -gameStates[roomId].players[clientFd].playerId)
+            if (gameStates[roomId].map[ny][nx] == gameStates[roomId].players[clientFd].playerId || gameStates[roomId].map[ny][nx] == 10000 + gameStates[roomId].players[clientFd].playerId)
             {
                 visited[ny][nx] = true;
                 q.push({ny, nx});
@@ -723,7 +723,7 @@ std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId, int c
             if (ny < 0 || ny >= MAP_HEIGHT || nx < 0 || nx >= MAP_WIDTH || visited[ny][nx])
                 continue;
             // other wise, mark as visited
-            if (gameStates[roomId].map[ny][nx] != gameStates[roomId].players[clientFd].playerId && gameStates[roomId].map[ny][nx] != -gameStates[roomId].players[clientFd].playerId)
+            if (gameStates[roomId].map[ny][nx] != gameStates[roomId].players[clientFd].playerId && gameStates[roomId].map[ny][nx] != 10000 + gameStates[roomId].players[clientFd].playerId)
             {
                 visited[ny][nx] = true;
                 q.push({ny, nx});
@@ -752,7 +752,7 @@ void GameManager::fillTerritory(const std::vector<std::pair<int, int>> &inside_p
     pthread_mutex_lock(&server->getGameMutex());
     for (const auto &[y, x] : inside_points)
     {
-        gameStates[roomId].map[y][x] = -gameStates[roomId].players[clientFd].playerId; // Mark as filled territory
+        gameStates[roomId].map[y][x] = 10000 + gameStates[roomId].players[clientFd].playerId; // Mark as filled territory
     }
     pthread_mutex_unlock(&server->getGameMutex());
 }
