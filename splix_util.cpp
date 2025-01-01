@@ -580,13 +580,13 @@ void Splix_Window::initialize_buffer()
     previous_map = std::vector<std::vector<int>>(MAP_HEIGHT, std::vector<int>(MAP_WIDTH, 0));
 }
 
-void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode)
+void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode, Player player)
 {
     int half_rows = height / 2;
     int half_cols = width / 2;
 
-    int start_y = std::max(0, coordinate_y - half_rows);
-    int start_x = std::max(0, coordinate_x - half_cols);
+    int start_y = std::max(0, player.coordinate_y - half_rows);
+    int start_x = std::max(0, player.coordinate_x - half_cols);
 
     if (start_y + height > MAP_HEIGHT)
         start_y = MAP_HEIGHT - height;
@@ -594,10 +594,10 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode)
         start_x = MAP_WIDTH - width;
 
     Custom_Blink_Border(win,
-                        coordinate_y <= half_rows,
-                        coordinate_y >= MAP_HEIGHT - half_rows,
-                        coordinate_x <= half_cols,
-                        coordinate_x >= MAP_WIDTH - half_cols);
+                        player.coordinate_y <= half_rows,
+                        player.coordinate_y >= MAP_HEIGHT - half_rows,
+                        player.coordinate_x <= half_cols,
+                        player.coordinate_x >= MAP_WIDTH - half_cols);
 
     setlocale(LC_ALL, "");
 
@@ -635,7 +635,7 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode)
                 else
                     symbol = L"▪";
             }
-            if (map_y == coordinate_y && map_x == coordinate_x)
+            if (map_y == coordinate_y && map_x == coordinate_x || map_y == player.coordinate_y && map_x == player.coordinate_x)
             {
                 symbol = L"◯";
             }

@@ -103,7 +103,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     game_win->draw();
     game_win->create_initial_territory(player.coordinate_y, player.coordinate_x);
     game_win->initialize_buffer();
-    game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
+    game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode, player);
     stat_win->draw();
     stat_win->update_status(player.coordinate_y, player.coordinate_x, "NORMAL", player.id);
     stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
@@ -127,9 +127,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             std::pair<int, int> head;
             Mode mode;
             head = unbox(cur_str, mode);
-            game_win->render_game(head.first, head.second, mode);
-            FILE *fp = fopen("log.txt", "w+");
-            fprintf(fp, "y = %d, x = %d\n", head.first, head.second);
+            game_win->render_game(player.coordinate_y, player.coordinate_x, mode, player);
         }
 #endif
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
@@ -246,7 +244,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             else
                 map[player.coordinate_y][player.coordinate_x] = player.id;
 
-            game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
+            game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode, player);
             stat_win->update_status(player.coordinate_y, player.coordinate_x,
                                     (player.mode == Mode::FAST) ? "BURST" : (player.mode == Mode::NORMAL) ? "NORMAL"
                                                                                                           : "SLOW",
