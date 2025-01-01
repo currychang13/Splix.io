@@ -395,6 +395,7 @@ void *playerThreadFunction(void *args)
     while (true)
     {
         socklen_t clilen = sizeof(cliaddr);
+        memset(buffer, 0, sizeof(buffer));
         ssize_t bytesRead = recvfrom(udpSocket, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&cliaddr, &clilen);
         std::cout << buffer << "\n";
         if (bytesRead <= 0)
@@ -461,7 +462,7 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
         int occupantPlayerId = gameState.map[y][x];
 
         // Check if the occupant is another player
-        if (occupantPlayerId != playerId)
+        if (occupantPlayerId != playerId && occupantPlayerId != -playerId && occupantPlayerId > 0)
         {
             // Find the clientFd of the occupant player
             int occupantFd = -1;
