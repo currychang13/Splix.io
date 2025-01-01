@@ -949,6 +949,12 @@ std::pair<int, int> UdpContent::get_position_from_server()
     sscanf(message, "%d %d", &position.first, &position.second);
     return position;
 }
+void UdpContent::send_leave_game()
+{
+    char message[BUFFER_SIZE] = "leave";
+    send(sockfd, message, strlen(message), MSG_CONFIRM);
+}
+
 
 // tcp functions
 void TcpContent::tcp_connect()

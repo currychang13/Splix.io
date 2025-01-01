@@ -20,7 +20,7 @@ std::pair<int, int> unbox(std::string str, Mode &mode) // id mode head_x head_y 
     std::stringstream ss(str);
     std::string token;
     getline(ss, token, ' ');
-    int id = std::stoi(token);
+    int value = std::stoi(token);
 
     getline(ss, token, ' ');
     mode = token == "FAST" ? Mode::FAST : Mode::NORMAL;
@@ -30,14 +30,14 @@ std::pair<int, int> unbox(std::string str, Mode &mode) // id mode head_x head_y 
     head_y = std::stoi(token);
     getline(ss, token, ' ');
     head_x = std::stoi(token);
-    map[head_y][head_x] = id;
+    map[head_y][head_x] = value;
 
     while (std::getline(ss, token, ' '))
     {
         int x = std::stoi(token);
         std::getline(ss, token, ' ');
         int y = std::stoi(token);
-        map[y][x] = id;
+        map[y][x] = value;
     }
     return {head_y, head_x};
 }
@@ -117,22 +117,22 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             Mode mode;
             head = unbox(cur_str, mode);
             game_win->render_game(head.first, head.second, mode);
+            sleep(2);
         }
 #endif
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
             (player.mode == Mode::FAST && ticker_fast.is_tick_due()) || ticker_slow.is_tick_due() && player.mode == Mode::SLOW)
         {
-            // update_alter_map();
             int ch = wgetch(game_win->win);
             std::pair<int, int> new_direction = player.direction;
             flushinp();
             if (ch != ERR)
             {
-                // flushinp();
                 switch (ch)
                 {
                 case 'q':
                     wattroff(game_win->win, COLOR_PAIR(player.id) | A_BOLD);
+                    udp.send_leave_game();
                     game_win->exit_game(1);
                     return false;
                 case 'w':
@@ -211,30 +211,25 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             player.coordinate_y += player.direction.first;
             player.coordinate_x += player.direction.second;
             // send to server
-
+            udp.send_server_position(player.coordinate_y, player.coordinate_x, player.id, player.mode);
             // Check if the player dies from going out of bounds
             if (!game_win->check_valid_position(player.coordinate_y, player.coordinate_x))
             {
                 return true;
             }
-
-            // Handle territory(handle by server)
+            // Handle territory and update map
             if (map[player.coordinate_y][player.coordinate_x] == -player.id)
             {
                 if (game_win->is_enclosure(player.coordinate_y, player.coordinate_x))
                 {
                     auto inside_points = game_win->find_inside_points();
+                    std::string message = "";
                     game_win->fill_territory(inside_points);
                 }
             }
             else
-            {
                 map[player.coordinate_y][player.coordinate_x] = player.id;
-#ifndef DEBUG
-                udp.send_server_position(player.coordinate_y, player.coordinate_x, player.id, player.mode);
-#endif
-            }
-
+            
             game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode);
             stat_win->update_status(player.coordinate_y, player.coordinate_x,
                                     (player.mode == Mode::FAST) ? "BURST" : "NORMAL", player.id);

@@ -284,6 +284,7 @@ public:
     struct sockaddr_in servaddr;
     void udp_connect();
     void send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode);
+    void send_leave_game();
     int get_id_from_server();
     std::pair<int, int> get_position_from_server();
 };
