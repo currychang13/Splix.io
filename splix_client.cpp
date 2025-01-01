@@ -58,7 +58,7 @@ void *listen_to_server(void *arg)
             buffer[bytes_received] = '\0';
             pthread_mutex_lock(&queue_mutex);
             message_queue.push(std::string(buffer));
-            pthread_mutex_lock(&queue_mutex);
+            pthread_mutex_unlock(&queue_mutex);
         }
         else if (bytes_received == 0)
         {

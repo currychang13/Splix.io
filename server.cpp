@@ -379,7 +379,7 @@ void *playerThreadFunction(void *args)
 
     std::string ack(recv);
     std::cout << ack << "\n";
-    std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].x) + "\n";
+    std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].x) + "\n";
     // send position
     sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::cout << "Position " << position << " sent\n";
@@ -1022,7 +1022,6 @@ void Server::processMessage(int clientFd)
 // Handle username input
 void Server::handleUsername(int clientFd, const std::string &username)
 {
-
     // Update client's username and state
     clients[clientFd].username = username;
     clients[clientFd].state = ClientState::ROOM_SELECTION;
@@ -1030,20 +1029,23 @@ void Server::handleUsername(int clientFd, const std::string &username)
     std::cout << "Client FD " << clientFd << " set username to " << username << std::endl;
 
     // Send room information to the client
-    sendRoomInfo(clientFd, *this);
+    // sendRoomInZfo(clientFd, *this);?
 }
 
 // Handle room selection
 void Server::handleRoomSelection(int clientFd, const std::string &roomIdStr)
 {
+    sendRoomInfo(clientFd, *this);
     int selectedRoomId = std::stoi(roomIdStr);
-    joinRoom(selectedRoomId, clientFd, *this);
     clients[clientFd].state = ClientState::WAITING_START;
 }
 
 // Handle start command
 void Server::handleStartCommand(int clientFd, const std::string &message)
 {
+    int selectedRoomId = std::stoi(message);
+    joinRoom(selectedRoomId, clientFd, *this);
+
     if (message != "start")
     {
         // Update client's state back to ROOM_SELECTION
