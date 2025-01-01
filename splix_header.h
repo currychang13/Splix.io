@@ -25,6 +25,7 @@
 #define HEIGHT_GAME_WIN 50
 #define WIDTH_GAME_WIN 100
 
+#define ROOM_LIMIT 15
 #define name_length 20
 #define id_length 4
 
@@ -238,6 +239,7 @@ class Create_Room_Window : public Window
 public:
     Create_Room_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void Render_create_room();
+    void Show_Instruction();
 };
 
 class CR_Input_Window : public Input_Window

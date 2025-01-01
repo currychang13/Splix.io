@@ -267,13 +267,13 @@ int main()
 
     // windows
     Initial_Window init_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-    Rule_Window rule_win(11, 37, (LINES - 7) / 2, (COLS - 37) / 2);
+    Rule_Window rule_win(13, 37, (LINES - 7) / 2, (COLS - 37) / 2);
     Input_Window input_win(HEIGHT_INIT_WIN / 13, WIDTH_GAME_WIN / 3, (HEIGHT_INIT_WIN - HEIGHT_GAME_WIN / 13) / 2.5, (COLS - WIDTH_GAME_WIN / 3) / 2);
 
     Select_Room_Window select_room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
 
     Create_Room_Window create_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-    CR_Input_Window cr_input_win(HEIGHT_INIT_WIN / 13, WIDTH_INIT_WIN / 2, (HEIGHT_INIT_WIN - HEIGHT_INIT_WIN / 13) / 2, (COLS - WIDTH_INIT_WIN / 2) / 2);
+    CR_Input_Window cr_input_win(HEIGHT_INIT_WIN / 13, WIDTH_INIT_WIN / 3, (HEIGHT_INIT_WIN - HEIGHT_INIT_WIN / 13) / 3, (COLS - WIDTH_INIT_WIN / 3) / 2);
 
     Room_Window room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
 
@@ -355,11 +355,25 @@ int main()
 
             else if (select_room_win.selected_room == room_info.size())
             {
-                create_win.draw();
-                create_win.Render_create_room();
-                cr_input_win.draw();
-                cr_input_win.get_user_input();
-                player.room_id = atoi(cr_input_win.id);
+                if (room_info.size() >= ROOM_LIMIT)
+                {
+                    Window full_win(5, 30, (LINES - 5) / 2, (COLS - 30) / 2);
+                    full_win.draw();
+                    mvwprintw(full_win.win, 2, (full_win.width - 17) / 2, "Room is full now");
+                    wgetch(full_win.win);
+                    full_win.clean();
+                    status = GameStatus::ROOM_SELECTION;
+                    break;
+                }
+                else
+                {
+                    create_win.draw();
+                    create_win.Render_create_room();
+                    cr_input_win.draw();
+                    create_win.Show_Instruction();
+                    cr_input_win.get_user_input();
+                    player.room_id = atoi(cr_input_win.id);
+                }
 #ifndef DEBUG
                 tcp.send_server_room_id(player.room_id); // send id to server, if room exist, join
 #endif

@@ -64,7 +64,8 @@ void Rule_Window::Show_Rules()
     mvwprintw(win, 1, (width - 12) / 2, "How to Play");
     mvwprintw(win, 4, (width - 31) / 2, "Use arrow keys or WASD to move");
     mvwprintw(win, 6, (width - 23) / 2, "Press F to boost speed");
-    mvwprintw(win, 8, (width - 25) / 2, "Press Q to quit the game");
+    mvwprintw(win, 8, (width - 21) / 2, "Press G to slow down");
+    mvwprintw(win, 10, (width - 25) / 2, "Press Q to quit the game");
     wrefresh(win);
 };
 
@@ -208,7 +209,12 @@ void Create_Room_Window::Render_create_room()
     wrefresh(win);
     wattroff(win, COLOR_PAIR(1) | A_BOLD);
 };
-
+void Create_Room_Window::Show_Instruction()
+{
+    wattron(win, COLOR_PAIR(3) | A_BOLD | A_BLINK);
+    mvwprintw(win, 18, (WIDTH_INIT_WIN - 30) / 2, "Type RoomID and press Enter");
+    wattroff(win, COLOR_PAIR(3) | A_BOLD | A_BLINK);
+}
 // CR_Input_Window functions
 void CR_Input_Window::get_user_input()
 {
