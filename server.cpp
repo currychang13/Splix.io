@@ -71,13 +71,16 @@ struct Room
 struct Player
 {
     int fd;
+    struct sockaddr *addr;
+    socklen_t len;
     int playerId; // Newly added field for sequential player ID
     int x;
     int y;
     std::pair<int, int> direction; // (dy, dx)
     bool isAlive;
+
     Player() : isAlive(true) {}
-    Player(int socket_fd, int id, int cor_x, int cor_y, std::pair<int, int> dir) : fd(socket_fd), playerId(id), x(cor_x), y(cor_y), direction(dir), isAlive(true) {}
+    Player(int socket_fd, struct sockaddr *addr, socklen_t len, int id, int cor_x, int cor_y, std::pair<int, int> dir) : fd(socket_fd), addr(addr), len(len), playerId(id), x(cor_x), y(cor_y), direction(dir), isAlive(true) {}
 };
 
 struct GameState
@@ -149,6 +152,7 @@ public:
     void handlePlayerDisconnection(int roomId, int clientFd, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket);
     Server *server;                      // Pointer back to Server
     std::map<int, GameState> gameStates; // roomId -> GameState
+    std::queue<std::string> q;
     void updateAllPlayers(int roomId);
     void checkPlayerDeaths(int roomId);
     void broadcastGameState(int roomId);
@@ -262,63 +266,11 @@ void GameManager::initializeGameState(int roomId, int clientFd)
 
 void GameManager::addPlayerToGame(int roomId, int clientFd)
 {
-    auto &gameState = gameStates[roomId]; //
-
-    Player player(clientFd, gameState.nextPlayerId, 0, 0, {0, 1});
-
-    // Assign a sequential playerId based on join order
-    int playerId = gameState.nextPlayerId;
-    player.playerId = playerId;
-
-    // Generate a random starting position with a minimum distance from walls
-    srand(time(NULL) + clientFd); // Seed with current time and clientFd for uniqueness
-    const int MIN_DISTANCE_FROM_WALL = 30;
-
-    int start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
-    int start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
-
-    // Ensure the starting position is on an empty cell
-    while (gameState.map[start_y][start_x] != 0)
-    {
-        start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
-        start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
-    }
-
-    player.x = start_x;
-    player.y = start_y;
-    std::cout << player.y << " " << player.x << "\n";
-    // Assign the player's ID to the map
-    gameState.map[player.y][player.x] = playerId;
-
-    // Mark the surrounding 8 cells as the player's territory (-playerId)
-    for (int dy = -2; dy <= 2; ++dy)
-    {
-        for (int dx = -2; dx <= 2; ++dx)
-        {
-            int new_x = player.x + dx;
-            int new_y = player.y + dy;
-
-            // Check map boundaries
-            if (new_x >= 0 && new_x < MAP_WIDTH && new_y >= 0 && new_y < MAP_HEIGHT)
-            {
-                // Only set if the cell is empty
-                if (gameState.map[new_y][new_x] == 0)
-                {
-                    gameState.map[new_y][new_x] = -playerId;
-                }
-            }
-        }
-    }
-
-    // Add player to game state
-    gameState.players[clientFd] = player;
-
     // Prepare arguments for player thread
     PlayerThreadArgs *ptArgs = new PlayerThreadArgs();
     ptArgs->clientFd = clientFd;
     ptArgs->gameManager = this;
     ptArgs->roomId = roomId;
-    ptArgs->playerId = playerId;
     std::string port = std::to_string(ptArgs->udpPort) + "\n";
     write(clientFd, port.c_str(), port.length());
     std::cout << "Port " << port << " sent\n";
@@ -327,7 +279,6 @@ void GameManager::addPlayerToGame(int roomId, int clientFd)
 
     if (pthread_create(&playerThread, nullptr, playerThreadFunction, ptArgs) != 0)
     {
-        std::cerr << "Failed to create thread for Player ID " << playerId << " (Client FD " << clientFd << ")\n";
         delete ptArgs;
         // Handle thread creation failure (e.g., remove player from game)
         pthread_mutex_unlock(&server->getGameMutex());
@@ -335,8 +286,6 @@ void GameManager::addPlayerToGame(int roomId, int clientFd)
     }
 
     pthread_detach(playerThread); // Detach the thread to allow independent execution
-
-    std::cout << "Player ID " << playerId << " (Client FD " << clientFd << ") added to Room " << roomId << "\n";
 }
 
 void *playerThreadFunction(void *args)
@@ -378,17 +327,65 @@ void *playerThreadFunction(void *args)
         return nullptr;
     }
 
+    //---------------- Generate a random starting position with a minimum distance from walls
+    srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
+    const int MIN_DISTANCE_FROM_WALL = 30;
+
+    int start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
+    int start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
+    auto &gameState = Playerargs->gameManager->gameStates[Playerargs->roomId];
+    // Ensure the starting position is on an empty cell
+    while (gameState.map[start_y][start_x] != 0)
+    {
+        start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
+        start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
+    }
+    for (int dy = -2; dy <= 2; ++dy)
+    {
+        for (int dx = -2; dx <= 2; ++dx)
+        {
+            int new_x = start_x + dx;
+            int new_y = start_y + dy;
+
+            // Check map boundaries
+            if (new_x >= 0 && new_x < MAP_WIDTH && new_y >= 0 && new_y < MAP_HEIGHT)
+            {
+                // Only set if the cell is empty
+                if (gameState.map[new_y][new_x] == 0)
+                {
+                    gameState.map[new_y][new_x] = -gameState.nextPlayerId;
+                }
+            }
+        }
+    }
+    //--------------------------------------------------------
+
     int assignedPort = ntohs(servaddr.sin_port);
     std::cout << "UDP connection established for Client FD " << Playerargs->clientFd << " on port " << assignedPort << "\n";
     char recv[MAXLINE];
     socklen_t clilen = sizeof(cliaddr);
+    // recv ack
     recvfrom(udpSocket, recv, MAXLINE, 0, (struct sockaddr *)&cliaddr, &clilen);
+
+    std::cout << "Player ID " << Playerargs->playerId << " (Client FD " << Playerargs->clientFd << ") added to Room " << Playerargs->roomId << "\n";
+    Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen, gameState.nextPlayerId, 0, 0, {0, 1});
+
+    player.x = start_x;
+    player.y = start_y;
+    std::cout << player.y << " " << player.x << "\n";
+    // Assign the player's ID to the map
+    gameState.map[player.y][player.x] = gameState.nextPlayerId;
+    gameState.players[udpSocket] = player;
+    // Mark the surrounding 8 cells as the player's territory (-playerId)
+
     std::string ack(recv);
     std::cout << ack << "\n";
     std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].x) + "\n";
+    // send position
     sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::cout << "Position " << position << " sent\n";
-    std::string id = std::to_string(Playerargs->playerId) + "\n";
+    std::string id = std::to_string(gameState.nextPlayerId) + "\n";
+    // send Id
     sendto(udpSocket, id.c_str(), id.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::cout << "PlayerId " << id << " sent\n";
     // std::queue<std::string> q;
@@ -425,7 +422,7 @@ void *playerThreadFunction(void *args)
         }
 
         // Handle the received message
-        Playerargs->gameManager->handlePlayerLogic(Playerargs->roomId, Playerargs->clientFd, message, (struct sockaddr *)&cliaddr, clilen, udpSocket);
+        Playerargs->gameManager->handlePlayerLogic(Playerargs->roomId, udpSocket, message, (struct sockaddr *)&cliaddr, clilen, udpSocket);
     }
 }
 
@@ -436,7 +433,8 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
     std::istringstream iss(message);
     int y, x;
     std::string mode;
-
+    std::string head = std::to_string(y) + " " + std::to_string(x) + " ";
+    q.push(head);
     if (!(iss >> y >> x >> mode))
     {
         std::cerr << "Invalid message format from client FD " << clientFd << "\n";
@@ -477,8 +475,8 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
 
             if (occupantFd != -1)
             {
-                // Send "DIE" message to the occupant player
                 std::string dieMsg = "die";
+                // Send "DIE" message to the occupant player
                 sendto(udpSocket, dieMsg.c_str(), dieMsg.length(), 0, cliaddr, clilen);
                 // Handle occupant player's death without disconnecting TCP
                 handlePlayerDeath(roomId, occupantFd);
@@ -492,12 +490,18 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
             }
         }
 
+        std::map<int, std::string> yx;
         if (gameState.map[y][x] == -playerId)
         {
             if (isEnclosure(y, x, roomId, clientFd))
             {
                 auto inside_points = findInsidePoints(roomId, clientFd);
                 fillTerritory(inside_points, roomId, clientFd);
+                // Store inside points in yx[gameState.map[i][j]] separated by space
+                for (const auto &[i, j] : inside_points)
+                {
+                    yx[gameState.PlayerId] += std::to_string(i) + " " + std::to_string(j) + " ";
+                }
             }
         }
         else
@@ -505,23 +509,22 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
             gameState.map[y][x] = playerId;
         }
         // Check if the map is modified by other player threads
-        std::map<int, std::string> yx;
-        for (int i = 0; i < MAP_HEIGHT; ++i)
-        {
-            for (int j = 0; j < MAP_WIDTH; ++j)
-            {
-                if (gameState.map[i][j] != 0 && gameState.map[i][j] != playerId && gameState.map[i][j] != -playerId)
-                {
-                    // Send the difference position by that cell player ID
-                    yx[gameState.map[i][j]] += std::to_string(y) + " " + std::to_string(x);
-                    +" ";
-                }
-            }
-        }
+        std::string diffMsg;
         for (const auto &[id, positions] : yx)
         {
-            std::string diffMsg = std::to_string(id) + " " + mode + " " + positions + "\n";
-            sendto(udpSocket, diffMsg.c_str(), diffMsg.length(), 0, cliaddr, clilen);
+            diffMsg = std::to_string(id) + " " + mode + " " + std::to_string(y) + " " + std::to_string(x) + positions;
+            std::cout << diffMsg << "\n";
+        }
+
+        // Broadcast diffMsg and dieMsg to other connected UDP clients
+        for (const auto &[otherFd, otherPlayer] : gameState.players)
+        {
+            if (otherFd != udpSocket)
+            {
+                // Send diffMsg
+                sendto(otherFd, diffMsg.c_str(), diffMsg.length(), 0, gameState.players[otherFd].addr, gameState.players[otherFd].len);
+                std::cout << "Sent to FD " << otherFd << ": " << diffMsg << "\n";
+            }
         }
     }
 
@@ -531,16 +534,16 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
     pthread_mutex_unlock(&server->getGameMutex());
 }
 
-void GameManager::handlePlayerDeath(int roomId, int clientFd)
+void GameManager::handlePlayerDeath(int roomId, int udpSocket)
 {
     // Ensure thread safety
     pthread_mutex_lock(&server->getGameMutex());
 
     auto &gameState = gameStates[roomId];
-    auto playerIt = gameState.players.find(clientFd);
+    auto playerIt = gameState.players.find(udpSocket);
     if (playerIt == gameState.players.end())
     {
-        std::cerr << "Player not found for client FD " << clientFd << " while handling death.\n";
+        std::cerr << "Player not found for client FD " << udpSocket << " while handling death.\n";
         pthread_mutex_unlock(&server->getGameMutex());
         return;
     }
@@ -550,7 +553,7 @@ void GameManager::handlePlayerDeath(int roomId, int clientFd)
 
     // Clear the player's position from the map
     gameState.map[playerIt->second.y][playerIt->second.x] = 0;
-
+    std::string yx;
     // Iterate through the entire map to clear all cells associated with this player
     for (int y = 0; y < MAP_HEIGHT; ++y)
     {
@@ -559,18 +562,33 @@ void GameManager::handlePlayerDeath(int roomId, int clientFd)
             if (gameState.map[y][x] == playerId || gameState.map[y][x] == -playerId)
             {
                 gameState.map[y][x] = 0;
+                yx += std::to_string(y) + " " + std::to_string(x) + " ";
             }
+        }
+    }
+    std::string diffMsg = "";
+    diffMsg += std::to_string(0) + " " + "NORMAL" + " " + yx;
+    std::cout << diffMsg << "\n";
+
+    // Broadcast diffMsg and dieMsg to other connected UDP clients
+    for (const auto &[otherFd, otherPlayer] : gameState.players)
+    {
+        if (otherFd != udpSocket)
+        {
+            // Send diffMsg
+            sendto(otherFd, diffMsg.c_str(), diffMsg.length(), 0, gameState.players[otherFd].addr, gameState.players[otherFd].len);
+            std::cout << "Sent to FD " << otherFd << ": " << diffMsg << "\n";
         }
     }
 
     // Reset UDP connection information
-    server->clients[clientFd].udpFd = -1;
-    server->clients[clientFd].udpAddrSet = false;
+    server->clients[udpSocket].udpFd = -1;
+    server->clients[udpSocket].udpAddrSet = false;
 
     // Set client state to WAITING_START
-    server->clients[clientFd].state = ClientState::WAITING_START;
+    server->clients[udpSocket].state = ClientState::WAITING_START;
 
-    std::cout << "Player ID " << playerId << " (Client FD " << clientFd
+    std::cout << "Player ID " << playerId << " (Client FD " << udpSocket
               << ") died.\n";
 
     pthread_mutex_unlock(&server->getGameMutex());
