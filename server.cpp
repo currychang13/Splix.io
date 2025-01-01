@@ -147,7 +147,7 @@ public:
     void handlePlayerLogic(int roomId, int clientFd, const std::string &message, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket, int playerId);
     void handlePlayerDeath(int roomId, int udpSocket, int clientFd);
     Server *server;                      // Pointer back to Server
-    std::map<int, GameState> gameStates; // roomId -> GameState
+    static std::map<int, GameState> gameStates; // roomId -> GameState
     std::queue<std::string> q;
     void updateAllPlayers(int roomId);
     void checkPlayerDeaths(int roomId);
@@ -378,7 +378,7 @@ void *playerThreadFunction(void *args)
     gameState.map[player.y][player.x] = gameState.nextPlayerId;
     gameState.players[udpSocket] = player;
     for (const auto &[fd, player] : gameState.players) {
-        std::cout << "Player FD: " << "\n";
+        std::cout << "Player FD: " << fd << "\n";
     }
 
     
