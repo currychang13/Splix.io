@@ -886,6 +886,7 @@ void UdpContent::udp_connect()
     bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_port = htons(port);
+    std::cerr << port;
     inet_pton(AF_INET, SERVER_IP, &servaddr.sin_addr);
     if (connect(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
     {
@@ -893,7 +894,13 @@ void UdpContent::udp_connect()
         close(sockfd);
         exit(EXIT_FAILURE);
     }
+<<<<<<< HEAD
     send(sockfd, "ack", 3, MSG_CONFIRM);
+=======
+    char sendline[100] = "ack\n";
+    send(sockfd, sendline, strlen(sendline), 0);
+    std::cerr << sockfd;
+>>>>>>> c649080 (chick)
 }
 void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode)
 {

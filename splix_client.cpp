@@ -1,5 +1,5 @@
 #include "splix_header.h"
-#define DEBUG
+// #define DEBUG
 // colors
 #define COLOR_CORAL 15
 #define COLOR_PURPLE 16
@@ -17,7 +17,7 @@ std::vector<std::string> member_info;
 
 void *listen_to_server(void *arg)
 {
-    int sockfd = *(int *)arg;
+    int udpsockfd = *(int *)arg;
     char buffer[BUFFER_SIZE];
     struct sockaddr_in from_addr;
     socklen_t from_len = sizeof(from_addr);

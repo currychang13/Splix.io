@@ -42,8 +42,10 @@ struct PlayerThreadArgs
     int playerId;
     int udpPort;
 
-    PlayerThreadArgs() : udpPort(14000) {}
+    PlayerThreadArgs() : udpPort(nextPort++) {}
+    static int nextPort;
 };
+int PlayerThreadArgs::nextPort = 14000;
 
 // Client Information Structure
 struct ClientInfo
@@ -53,7 +55,6 @@ struct ClientInfo
     ClientState state;
     int roomId;
     int udpFd; // UDP socket file descriptor
-    struct sockaddr_in clientAddr;
     bool udpAddrSet; // Flag to indicate if UDP address is set
 
     ClientInfo() : fd(-1), roomId(-1), udpFd(-1), udpAddrSet(false) {}
@@ -75,8 +76,9 @@ struct Player
     int y;
     std::pair<int, int> direction; // (dy, dx)
     bool isAlive;
-    Player() : playerId(0), isAlive(true) {}
+    Player() : isAlive(true) {}
     Player(int socket_fd, int id, int cor_x, int cor_y, std::pair<int, int> dir) : fd(socket_fd), playerId(id), x(cor_x), y(cor_y), direction(dir), isAlive(true) {}
+    
 };
 
 struct GameState
@@ -84,9 +86,9 @@ struct GameState
     int roomId;
     int map[MAP_HEIGHT][MAP_WIDTH];
     std::map<int, Player> players; // Keyed by client fd
-    int nextPlayerId;              // Newly added field for tracking next player ID
-
-    GameState() : nextPlayerId(1)
+    static int nextPlayerId;              // Newly added field for tracking next player ID
+    int PlayerId;
+    GameState() : PlayerId(nextPlayerId++)
     {
         for (int i = 0; i < MAP_WIDTH; ++i)
         {
@@ -97,6 +99,8 @@ struct GameState
         }
     }
 };
+
+int GameState::nextPlayerId(-1);
 
 // Server Class
 class Server
@@ -264,7 +268,7 @@ void GameManager::addPlayerToGame(int roomId, int clientFd)
     Player player(clientFd, gameState.nextPlayerId, 0, 0, {0, 1});
 
     // Assign a sequential playerId based on join order
-    int playerId = gameState.nextPlayerId++;
+    int playerId = gameState.nextPlayerId;
     player.playerId = playerId;
 
     // Generate a random starting position with a minimum distance from walls
@@ -316,7 +320,9 @@ void GameManager::addPlayerToGame(int roomId, int clientFd)
     ptArgs->gameManager = this;
     ptArgs->roomId = roomId;
     ptArgs->playerId = playerId;
-
+    std::string port = std::to_string(ptArgs->udpPort) + "\n";
+    write(clientFd, port.c_str(), port.length());
+    std::cout << "Port " << port << " sent\n";
     // Create a new thread for the player
     pthread_t playerThread;
 
@@ -353,9 +359,8 @@ void *playerThreadFunction(void *args)
     struct sockaddr_in servaddr, cliaddr;
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = (INADDR_ANY);
+    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons(Playerargs->udpPort++); // Let the system choose the port
-
     if (bind(udpSocket, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0)
     {
         perror("UDP socket bind failed");
@@ -376,11 +381,17 @@ void *playerThreadFunction(void *args)
 
     int assignedPort = ntohs(servaddr.sin_port);
     std::cout << "UDP connection established for Client FD " << Playerargs->clientFd << " on port " << assignedPort << "\n";
-    cliaddr = Playerargs->gameManager->server->clients[Playerargs->clientFd].clientAddr;
-
-    std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].x);
+    char recv[MAXLINE];
+    socklen_t clilen = sizeof(cliaddr);
+    recvfrom(udpSocket, recv, MAXLINE, 0, (struct sockaddr *)&cliaddr, &clilen);
+    std::string ack(recv);
+    std::cout << ack << "\n";
+    std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].x) + "\n";
+    sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::cout << "Position " << position << " sent\n";
-    sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, sizeof(cliaddr));
+    std::string id = std::to_string(Playerargs->playerId) + "\n";
+    sendto(udpSocket, id.c_str(), id.length(), 0, (struct sockaddr *)&cliaddr, clilen);
+    std::cout << "PlayerId " << id << " sent\n";
     while (true)
     {
         socklen_t clilen = sizeof(cliaddr);
@@ -524,7 +535,6 @@ void GameManager::handlePlayerDeath(int roomId, int clientFd)
     // Reset UDP connection information
     server->clients[clientFd].udpFd = -1;
     server->clients[clientFd].udpAddrSet = false;
-    memset(&server->clients[clientFd].clientAddr, 0, sizeof(server->clients[clientFd].clientAddr));
 
     // Set client state to WAITING_START
     server->clients[clientFd].state = ClientState::WAITING_START;
@@ -889,7 +899,6 @@ void Server::handleNewConnection()
     ci.fd = connfd;
     ci.username = "";
     ci.state = ClientState::WAITING_USERNAME;
-    ci.clientAddr = cliaddr; // Store client's address
     // Store the client information
     clients[connfd] = ci;
 
