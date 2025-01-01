@@ -332,6 +332,8 @@ void *playerThreadFunction(void *args)
 
     int start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
     int start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
+
+    //init gamestate
     auto &gameState = Playerargs->gameManager->gameStates[Playerargs->roomId];
     // Ensure the starting position is on an empty cell
     while (gameState.map[start_y][start_x] != 0)
@@ -375,10 +377,14 @@ void *playerThreadFunction(void *args)
     // Assign the player's ID to the map
     gameState.map[player.y][player.x] = gameState.nextPlayerId;
     gameState.players[udpSocket] = player;
+    for (const auto &[fd, player] : gameState.players) {
+        std::cout << "Player FD: " << "\n";
+    }
+
     
     std::string ack(recv);
     std::cout << ack << "\n";
-    std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].x) + "\n";
+    std::string position = std::to_string(player.y) + " " + std::to_string(player.x) + "\n";
     // send position
     sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::cout << "Position " << position << " sent\n";
