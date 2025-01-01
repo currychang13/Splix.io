@@ -397,6 +397,7 @@ int main()
                 }
                 else
                 {
+                    create_win.clean();
                     create_win.draw();
                     create_win.Render_create_room();
                     cr_input_win.draw();

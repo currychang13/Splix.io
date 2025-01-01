@@ -17,8 +17,8 @@
 #define MAXLINE 4096
 #define SERV_PORT 12345
 #define LISTENQ 10
-#define MAP_WIDTH 600
-#define MAP_HEIGHT 600
+#define MAP_WIDTH 100
+#define MAP_HEIGHT 100
 #define SA struct sockaddr
 
 class GameManager;
@@ -127,12 +127,9 @@ public:
     void setupServer(int port);
     void handleNewConnection();
     void processMessage(int clientFd);
-    void handleUsername(int clientFd, const std::string &username);
     void sendRoomInfo(int clientFd, Server &server);
     void joinRoom(int roomId, int clientFd, Server &server);
     void broadcastMessage(const std::string &message, int exclude_fd);
-    void handleRoomSelection(int clientFd, const std::string &roomIdStr);
-    void handleStartCommand(int clientFd, const std::string &message);
 
 private:
 };
@@ -198,22 +195,25 @@ void Server::joinRoom(int roomId, int clientFd, Server &server)
     auto it = rooms.find(roomId);
     if (it != rooms.end())
     {
-        clients[clientFd].roomId = roomId;
         // Room exists. Add client to the room.
-        it->second.clientFd.push_back(clientFd);
-        it->second.usernames.push_back(clients[clientFd].username);
-        std::cout << "Client FD " << clientFd << " joined existing room " << roomId << std::endl;
+        if (std::find(it->second.clientFd.begin(), it->second.clientFd.end(), clientFd) == it->second.clientFd.end())
+        {
+            clients[clientFd].roomId = roomId;
+            it->second.clientFd.push_back(clientFd);
+            it->second.usernames.push_back(clients[clientFd].username);
+            std::cout << "Client FD " << clientFd << " joined existing room " << roomId << std::endl;
+        }
 
         // Prepare the list of other users' usernames
         std::stringstream ss;
-        for (const auto username : rooms[roomId].usernames)
+        for (const auto &username : rooms[roomId].usernames)
         {
             ss << username << "\n";
         }
 
         std::string userList = ss.str();
-        int shit = rooms[roomId].usernames.size();
-        std::string tmp = std::to_string(shit) + "\n";
+        int userCount = rooms[roomId].usernames.size();
+        std::string tmp = std::to_string(userCount) + "\n";
         write(clientFd, tmp.c_str(), tmp.length());
         ssize_t bytesSent = write(clientFd, userList.c_str(), userList.length());
 
@@ -328,7 +328,7 @@ void *playerThreadFunction(void *args)
 
     //---------------- Generate a random starting position with a minimum distance from walls
     srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
-    const int MIN_DISTANCE_FROM_WALL = 30;
+    const int MIN_DISTANCE_FROM_WALL = 20;
 
     int start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
     int start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
@@ -375,11 +375,10 @@ void *playerThreadFunction(void *args)
     // Assign the player's ID to the map
     gameState.map[player.y][player.x] = gameState.nextPlayerId;
     gameState.players[udpSocket] = player;
-    // Mark the surrounding 8 cells as the player's territory (-playerId)
 
     std::string ack(recv);
     std::cout << ack << "\n";
-    std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[Playerargs->clientFd].x) + "\n";
+    std::string position = std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].y) + " " + std::to_string(Playerargs->gameManager->gameStates[Playerargs->roomId].players[udpSocket].x) + "\n";
     // send position
     sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::cout << "Position " << position << " sent\n";
@@ -402,12 +401,11 @@ void *playerThreadFunction(void *args)
             }
             else
             {
-                std::cout << "Client FD " << Playerargs->clientFd << " disconnected.\n";
+                std::cout << "Client FD " << udpSocket << " disconnected.\n";
             }
 
             // Handle player disconnection
             Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
-            close(Playerargs->clientFd);
             return nullptr;
         }
 
@@ -416,7 +414,6 @@ void *playerThreadFunction(void *args)
         if (message == "leave")
         {
             Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
-            close(Playerargs->clientFd);
             return nullptr;
         }
 
@@ -432,14 +429,13 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
     std::istringstream iss(message);
     int y, x;
     std::string mode;
-    std::string head = std::to_string(y) + " " + std::to_string(x) + " ";
-    q.push(head);
     if (!(iss >> y >> x >> mode))
     {
         std::cerr << "Invalid message format from client FD " << clientFd << "\n";
         pthread_mutex_unlock(&server->getGameMutex());
         return;
     }
+    std::cout << "Received from FD " << udpSocket << ": " << y << " " << x << " " << mode << "\n";
     auto &gameState = gameStates[roomId];
     auto playerIt = gameState.players.find(udpSocket);
     if (playerIt == gameState.players.end())
@@ -492,10 +488,10 @@ void GameManager::handlePlayerLogic(int roomId, int clientFd, const std::string 
         std::map<int, std::string> yx;
         if (gameState.map[y][x] == -playerId)
         {
-            if (isEnclosure(y, x, roomId, clientFd))
+            if (isEnclosure(y, x, roomId, udpSocket))
             {
-                auto inside_points = findInsidePoints(roomId, clientFd);
-                fillTerritory(inside_points, roomId, clientFd);
+                auto inside_points = findInsidePoints(roomId, udpSocket);
+                fillTerritory(inside_points, roomId, udpSocket);
                 // Store inside points in yx[gameState.map[i][j]] separated by space
                 for (const auto &[i, j] : inside_points)
                 {
@@ -585,13 +581,15 @@ void GameManager::handlePlayerDeath(int roomId, int udpSocket, int clientFd)
     // Remove player from the game state
     gameState.players.erase(playerIt);
     // Set client state to WAITING_START
-    server->clients[udpSocket]
+    server->clients[clientFd]
         .state = ClientState::WAITING_START;
-
+    server->joinRoom(roomId, clientFd, *server);
     std::cout << "Player ID " << playerId << " (Client FD " << udpSocket
               << ") died.\n";
-    // Set client state to WAITING_START
-    server->clients[clientFd].state = ClientState::WAITING_START;
+
+    // Close the UDP socket
+    close(udpSocket);
+
     pthread_mutex_unlock(&server->getGameMutex());
 }
 
@@ -942,7 +940,6 @@ void Server::processMessage(int clientFd)
     char recvline[MAXLINE];
     memset(&recvline, 0, sizeof(recvline));
     ssize_t n = read(clientFd, recvline, MAXLINE - 1);
-    std::cout << "Client sent: " << recvline << "\n";
     if (n <= 0)
     {
         // Handle client disconnect
@@ -988,6 +985,7 @@ void Server::processMessage(int clientFd)
         }
         return;
     }
+    std::cout << "Client sent: " << recvline << "\n";
     recvline[n] = '\0';
     std::string message(recvline);
 
@@ -1001,94 +999,75 @@ void Server::processMessage(int clientFd)
     switch (state)
     {
     case ClientState::WAITING_USERNAME:
-        handleUsername(clientFd, message);
+    {
+        clients[clientFd].username = message;
+        sendRoomInfo(clientFd, *this);
+        clients[clientFd].state = ClientState::ROOM_SELECTION;
         break;
+    }
 
     case ClientState::ROOM_SELECTION:
-        handleRoomSelection(clientFd, message);
+    {
+        int selectedRoomId = std::stoi(message);
+        joinRoom(selectedRoomId, clientFd, *this);
+        clients[clientFd].state = ClientState::WAITING_START;
         break;
+    }
 
     case ClientState::WAITING_START:
-        handleStartCommand(clientFd, message);
+    {
+        if (message != "start")
+        {
+            // Update client's state back to ROOM_SELECTION
+
+            // Retrieve the room ID the client is currently in
+            int roomId = clients[clientFd].roomId;
+
+            // Check if the room exists
+            auto roomIt = rooms.find(roomId);
+            if (roomIt != rooms.end())
+            {
+                // Remove the client from the room's client list
+                roomIt->second.clientFd.erase(
+                    std::remove(roomIt->second.clientFd.begin(), roomIt->second.clientFd.end(), clientFd),
+                    roomIt->second.clientFd.end());
+
+                // Remove the client's username from the room's username list
+                roomIt->second.usernames.erase(
+                    std::remove(roomIt->second.usernames.begin(), roomIt->second.usernames.end(), clients[clientFd].username),
+                    roomIt->second.usernames.end());
+
+                std::cout << "Client FD " << clientFd << " left Room " << roomId << std::endl;
+
+                // If the room is now empty, erase it from the rooms map
+                if (roomIt->second.clientFd.empty())
+                {
+                    rooms.erase(roomIt);
+                    std::cout << "Room " << roomId << " has been cleared as it has no more clients.\n";
+                }
+                // Send room information to the client
+                clients[clientFd].state = ClientState::ROOM_SELECTION;
+                sendRoomInfo(clientFd, *this);
+            }
+        }
+        else
+        {
+            int roomId = clients[clientFd].roomId;
+
+            clients[clientFd].state = ClientState::PLAYING_GAME;
+
+            gameManager->initializeGameState(roomId, clientFd);
+            gameManager->addPlayerToGame(roomId, clientFd);
+
+            std::cout << "Client FD " << clientFd << " started game in Room " << roomId << "\n";
+        }
         break;
+    }
 
     default:
         std::cerr << "Unknown state for client FD " << clientFd << std::endl;
         break;
     }
-}
-
-// Handle username input
-void Server::handleUsername(int clientFd, const std::string &username)
-{
-    // Update client's username and state
-    clients[clientFd].username = username;
-    clients[clientFd].state = ClientState::ROOM_SELECTION;
-
-    std::cout << "Client FD " << clientFd << " set username to " << username << std::endl;
-
-    // Send room information to the client
-    // sendRoomInZfo(clientFd, *this);?
-}
-
-// Handle room selection
-void Server::handleRoomSelection(int clientFd, const std::string &roomIdStr)
-{
-    sendRoomInfo(clientFd, *this);
-    int selectedRoomId = std::stoi(roomIdStr);
-    clients[clientFd].state = ClientState::WAITING_START;
-}
-
-// Handle start command
-void Server::handleStartCommand(int clientFd, const std::string &message)
-{
-    int selectedRoomId = std::stoi(message);
-    joinRoom(selectedRoomId, clientFd, *this);
-
-    if (message != "start")
-    {
-        // Update client's state back to ROOM_SELECTION
-        clients[clientFd].state = ClientState::ROOM_SELECTION;
-
-        // Retrieve the room ID the client is currently in
-        int roomId = clients[clientFd].roomId;
-
-        // Check if the room exists
-        auto roomIt = rooms.find(roomId);
-        if (roomIt != rooms.end())
-        {
-            // Remove the client from the room's client list
-            roomIt->second.clientFd.erase(
-                std::remove(roomIt->second.clientFd.begin(), roomIt->second.clientFd.end(), clientFd),
-                roomIt->second.clientFd.end());
-
-            // Remove the client's username from the room's username list
-            roomIt->second.usernames.erase(
-                std::remove(roomIt->second.usernames.begin(), roomIt->second.usernames.end(), clients[clientFd].username),
-                roomIt->second.usernames.end());
-
-            std::cout << "Client FD " << clientFd << " left Room " << roomId << std::endl;
-
-            // If the room is now empty, erase it from the rooms map
-            if (roomIt->second.clientFd.empty())
-            {
-                rooms.erase(roomIt);
-                std::cout << "Room " << roomId << " has been cleared as it has no more clients.\n";
-            }
-            // Send room information to the client
-            sendRoomInfo(clientFd, *this);
-        }
-        return;
-    }
-
-    int roomId = clients[clientFd].roomId;
-
-    clients[clientFd].state = ClientState::PLAYING_GAME;
-
-    gameManager->initializeGameState(roomId, clientFd); // bug
-    gameManager->addPlayerToGame(roomId, clientFd);
-
-    std::cout << "Client FD " << clientFd << " started game in Room " << roomId << "\n";
 }
 
 // Main Function

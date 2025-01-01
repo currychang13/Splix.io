@@ -56,6 +56,7 @@ void Initial_Window::Rendertitle()
 void Initial_Window::Show_Instruction()
 {
     wattron(win, COLOR_PAIR(3) | A_BOLD | A_BLINK);
+    mvwprintw(win, 18, (WIDTH_INIT_WIN - 55) / 2, "                                                      ");
     mvwprintw(win, 18, (WIDTH_INIT_WIN - 30) / 2, "Type your name and press Enter");
     wattroff(win, COLOR_PAIR(3) | A_BOLD | A_BLINK);
 };
@@ -243,7 +244,7 @@ void Create_Room_Window::Show_choice()
         {
             selected_choice = (selected_choice + 1 <= 2) ? selected_choice + 1 : 2;
         }
-        else if (ch == '\n')    
+        else if (ch == '\n')
         {
             selected = true;
         }
@@ -1068,9 +1069,7 @@ void TcpContent::send_return_to_room_selection()
 }
 void TcpContent::send_start()
 {
-    char message[100] = "";
-    sprintf(message, "start");
-    write(sockfd, message, strlen(message));
+    write(sockfd, "start", 5);
 }
 void TcpContent::receive_port(int &port)
 {
