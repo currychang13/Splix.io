@@ -364,7 +364,7 @@ void *playerThreadFunction(void *args)
         }
     }
     int playerId = gameState.nextPlayerId;
-    std::string position = std::to_string(start_y) + " " + std::to_string(start_x) + "\n";
+    std::string position = std::to_string(playerId) + std::to_string(start_y) + " " + std::to_string(start_x);
     Playerargs->gameManager->broadcastMessage(playerId, position, udpSocket, Playerargs->roomId);
     //---------------------------------------------------------------------------
     
@@ -421,8 +421,41 @@ void *playerThreadFunction(void *args)
         int y, x;
         ss >> y >> x;
         // update map
-        gameState.map[y][x] = playerId;
-        if()
+        if(gameState.map[y][x] == playerId || y <= 0 || y >= MAP_WIDTH || x <= 0 || x >= MAP_HEIGHT) // die
+        {
+            for(int i = 0; i < MAP_WIDTH; ++i)
+            {
+                for(int j = 0; j < MAP_HEIGHT; ++j)
+                {
+                    if(gameState.map[i][j] == playerId)
+                        gameState.map[y][x] = 0;
+                }
+            }
+        }
+        else if(gameState.map[y][x] == -playerId)
+        {
+            if(Playerargs->gameManager->isEnclosure(y, x, Playerargs->roomId, Playerargs->clientFd))
+            {
+                auto inside_points = Playerargs->gameManager->findInsidePoints(Playerargs->roomId, Playerargs->clientFd);
+                Playerargs->gameManager->fillTerritory(inside_points, playerId, Playerargs->clientFd);   
+            }
+        }
+        else if(gameState.map[y][x] > 0)
+        {
+            int killedId = gameState.map[y][x];
+            for(int i = 0; i < MAP_WIDTH; ++i)
+            {
+                for(int j = 0; j < MAP_HEIGHT; ++j)
+                {
+                    if(gameState.map[i][j] == killedId)
+                        gameState.map[y][x] = 0;
+                }
+            }
+        }
+        else
+        {
+            gameState.map[y][x] = playerId;
+        }
     }
 }
 
