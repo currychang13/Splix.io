@@ -1,4 +1,4 @@
-PROGS = splix_client splix_client.o server
+PROGS = splix_client splix_client.o 
 .PHONY: all clean
 
 all:$(PROGS)

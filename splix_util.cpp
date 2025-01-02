@@ -661,9 +661,7 @@ void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
         {
             int cur_y = coordinate_y + dy[j];
             if (map[cur_y][cur_x] == -id || cur_x < 0 || cur_x >= MAP_WIDTH || cur_y < 0 || cur_y >= MAP_HEIGHT)
-            if (map[cur_y][cur_x] == -id || cur_x < 0 || cur_x >= MAP_WIDTH || cur_y < 0 || cur_y >= MAP_HEIGHT)
                 continue;
-            map[cur_y][cur_x] = -id;
             map[cur_y][cur_x] = -id;
         }
     }
@@ -705,7 +703,6 @@ bool Splix_Window::is_enclosure(int y, int x)
                 continue;
 
             // Only consider trail (`id`) and territory (`-id`)
-            if (map[ny][nx] == id || map[ny][nx] == -id)
             if (map[ny][nx] == id || map[ny][nx] == -id)
             {
                 visited[ny][nx] = true;
@@ -771,7 +768,7 @@ std::vector<std::pair<int, int>> Splix_Window::find_inside_points()
             if (ny < 0 || ny >= MAP_HEIGHT || nx < 0 || nx >= MAP_WIDTH || visited[ny][nx])
                 continue;
             // other wise, mark as visited
-            if (map[ny][nx] != id && map[ny][nx] !=-id)
+            if (map[ny][nx] != id && map[ny][nx] != -id)
             {
                 visited[ny][nx] = true;
                 q.push({ny, nx});
@@ -786,7 +783,6 @@ std::vector<std::pair<int, int>> Splix_Window::find_inside_points()
         for (int x = 1; x < MAP_WIDTH - 1; x++)
         {
             if (!visited[y][x] && (map[y][x] != -id)) //(map[y][x] == 0 || map[y][x] == id)
-            if (!visited[y][x] && (map[y][x] != -id)) //(map[y][x] == 0 || map[y][x] == id)
             {
                 inside_points.push_back({y, x});
             }
@@ -798,7 +794,6 @@ void Splix_Window::fill_territory(const std::vector<std::pair<int, int>> &inside
 {
     for (const auto &[y, x] : inside_points)
     {
-        map[y][x] = -id; // Mark as filled territory
         map[y][x] = -id; // Mark as filled territory
     }
 }
@@ -875,7 +870,6 @@ void Status_Window::update_status(int coordinate_y, int coordinate_x, const char
     {
         for (int j = 0; j < MAP_WIDTH; j++)
         {
-            if (map[i][j] == -id)
             if (map[i][j] == -id)
             {
                 score++;

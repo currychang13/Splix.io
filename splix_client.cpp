@@ -28,28 +28,27 @@ std::pair<int, int> unbox(std::string str, Mode &mode, int &value) // value mode
             token[i] = token[i + 1];
         }
         value = (-1) * std::stoi(token);
-        std::cerr<<value;
-        napms(2000);
+        std::cerr << value;
+        napms(1000);
     }
     else
     {
         value = std::stoi(token);
     }
     ss >> token;
-    mode = token == "FAST" ? Mode::FAST : Mode::NORMAL;
+    mode = (token == "FAST") ? Mode::FAST : Mode::NORMAL;
 
     int head_x, head_y;
-    getline(ss, token, ' ');
+    ss >> token;
     head_y = std::stoi(token);
-    getline(ss, token, ' ');
+    ss >> token;
     head_x = std::stoi(token);
     map[head_y][head_x] = value;
 
-    while (std::getline(ss, token, ' '))
+    while (ss >> tokenY >> tokenX)
     {
-        int x = std::stoi(token);
-        std::getline(ss, token, ' ');
-        int y = std::stoi(token);
+        int y = std::stoi(tokenY);
+        int x = std::stoi(tokenX);
         map[y][x] = value;
     }
     return {head_y, head_x};
@@ -71,16 +70,6 @@ void *listen_to_server(void *arg)
             pthread_mutex_lock(&queue_mutex);
             message_queue.push(std::string(buffer));
             pthread_mutex_unlock(&queue_mutex);
-        }
-        else if (bytes_received == 0)
-        {
-            printf("Connection closed by server.\n");
-            break;
-        }
-        else
-        {
-            perror("recvfrom error");
-            break;
         }
     }
     pthread_exit(NULL);
@@ -139,8 +128,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             std::pair<int, int> head;
             Mode mode;
             head = unbox(cur_str, mode, id);
-            game_win->render_game(head.first, head.second, mode, player, id > 0 ? id : id == 0 ? player.id
-                                                                                               : -id);
+            game_win->render_game(head.first, head.second, mode, player, id);
         }
 #endif
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
