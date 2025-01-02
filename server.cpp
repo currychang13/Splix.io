@@ -148,13 +148,9 @@ public:
     void broadcastMessage(int playerId, const std::string &message, int udpSock, int roomId);
     void initializeGameState(int roomId, int clientFd);
     void addPlayerToGame(int roomId, int clientFd);
-    void udpConnection();
-    void sendRandomPoint();
-    void playerUpdatePostion();
     bool isEnclosure(int y, int x, int roomId, int clientFd);
     std::vector<std::pair<int, int>> findInsidePoints(int roomId, int clientFd);
     void fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId, int clientFd);
-    void handlePlayerLogic(int roomId, int clientFd, const std::string &message, struct sockaddr *cliaddr, socklen_t clilen, int udpSocket, int playerId);
     void handlePlayerDeath(int roomId, int udpSocket, int clientFd);
     Server *server;                      // Pointer back to Server
     std::map<int, GameState> gameStates; // roomId -> GameState
@@ -367,12 +363,12 @@ void *playerThreadFunction(void *args)
     std::string position = std::to_string(playerId) + std::to_string(start_y) + " " + std::to_string(start_x);
     Playerargs->gameManager->broadcastMessage(playerId, position, udpSocket, Playerargs->roomId);
     //---------------------------------------------------------------------------
-    
-    //3. initial map--------------------------------------------------------
+
+    // 3. initial map--------------------------------------------------------
     std::string initMap = "";
-    for(int i = 0; i < MAP_WIDTH; ++i)
+    for (int i = 0; i < MAP_WIDTH; ++i)
     {
-        for(int j = 0; j < MAP_HEIGHT; ++j)
+        for (int j = 0; j < MAP_HEIGHT; ++j)
         {
             initMap += gameState.map[i][j] + " ";
         }
@@ -388,8 +384,7 @@ void *playerThreadFunction(void *args)
     // {
     //     std::cout << "Player FD: " << fd << "\n";
     // }
-    
-    
+
     char buffer[MAXLINE];
     while (true)
     {
@@ -416,38 +411,38 @@ void *playerThreadFunction(void *args)
         buffer[bytesRead] = '\0';
         std::string message(buffer);
         // Handle the received message
-        Playerargs->gameManager->broadcastMessage(playerId, message , udpSocket, Playerargs->roomId);
+        Playerargs->gameManager->broadcastMessage(playerId, message, udpSocket, Playerargs->roomId);
         std::stringstream ss(message);
         int y, x;
         ss >> y >> x;
         // update map
-        if(gameState.map[y][x] == playerId || y <= 0 || y >= MAP_WIDTH || x <= 0 || x >= MAP_HEIGHT) // die
+        if (gameState.map[y][x] == playerId || y <= 0 || y >= MAP_WIDTH || x <= 0 || x >= MAP_HEIGHT) // die
         {
-            for(int i = 0; i < MAP_WIDTH; ++i)
+            for (int i = 0; i < MAP_WIDTH; ++i)
             {
-                for(int j = 0; j < MAP_HEIGHT; ++j)
+                for (int j = 0; j < MAP_HEIGHT; ++j)
                 {
-                    if(gameState.map[i][j] == playerId)
+                    if (gameState.map[i][j] == playerId)
                         gameState.map[y][x] = 0;
                 }
             }
         }
-        else if(gameState.map[y][x] == -playerId)
+        else if (gameState.map[y][x] == -playerId)
         {
-            if(Playerargs->gameManager->isEnclosure(y, x, Playerargs->roomId, Playerargs->clientFd))
+            if (Playerargs->gameManager->isEnclosure(y, x, Playerargs->roomId, Playerargs->clientFd))
             {
                 auto inside_points = Playerargs->gameManager->findInsidePoints(Playerargs->roomId, Playerargs->clientFd);
-                Playerargs->gameManager->fillTerritory(inside_points, playerId, Playerargs->clientFd);   
+                Playerargs->gameManager->fillTerritory(inside_points, playerId, Playerargs->clientFd);
             }
         }
-        else if(gameState.map[y][x] > 0)
+        else if (gameState.map[y][x] > 0)
         {
             int killedId = gameState.map[y][x];
-            for(int i = 0; i < MAP_WIDTH; ++i)
+            for (int i = 0; i < MAP_WIDTH; ++i)
             {
-                for(int j = 0; j < MAP_HEIGHT; ++j)
+                for (int j = 0; j < MAP_HEIGHT; ++j)
                 {
-                    if(gameState.map[i][j] == killedId)
+                    if (gameState.map[i][j] == killedId)
                         gameState.map[y][x] = 0;
                 }
             }
@@ -652,6 +647,16 @@ void GameManager::fillTerritory(const std::vector<std::pair<int, int>> &inside_p
     pthread_mutex_unlock(&server->getGameMutex());
 }
 
+void GameManager::broadcastMessage(int playerId, const std::string &message, int udpSock, int roomId)
+{
+    for (const auto &[otherFd, otherPlayer] : gameStates[roomId].players)
+    {
+        // Send diffMsg
+        sendto(otherFd, message.c_str(), message.length(), 0, gameStates[roomId].players[otherFd].addr, gameStates[roomId].players[otherFd].len);
+        std::cout << "Sent to FD " << otherFd << ": " << message << "\n";
+    }
+}
+
 // Implementation of Server Methods
 Server::Server(int port)
     : listenfd(-1), maxfd(-1),
@@ -770,20 +775,6 @@ void Server::handleNewConnection()
         maxfd = connfd;
 
     std::cout << "New connection established. FD: " << connfd << std::endl;
-}
-
-// Broadcast a message to all clients except exclude_fd
-void GameManager::(int playerId, const std::string &message, int udpSocket, int roomId)
-{
-    for (const auto &[otherFd, otherPlayer] : gameStates[roomId].players)
-    {
-        if (otherFd != udpSocket)
-        {
-            // Send diffMsg
-            sendto(otherFd, message.c_str(), message.length(), 0, gameStates[roomId].players[otherFd].addr, gameStates[roomId].players[otherFd].len);
-            std::cout << "Sent to FD " << otherFd << ": " << message << "\n";
-        }
-    }
 }
 
 // Process incoming messages based on client state

@@ -209,7 +209,9 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 {
                 case 'q':
                     // wattroff(game_win->win, COLOR_PAIR(player.id) | A_BOLD);
-                    //  udp.send_leave_game();
+                    player.coordinate_x = -1;
+                    player.coordinate_y = -1;
+                    udp.send_server_position(player);
                     game_win->exit_game(1);
                     return false;
                 case 'w':
