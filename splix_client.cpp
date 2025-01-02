@@ -159,13 +159,14 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             message_queue.pop();
             pthread_mutex_unlock(&queue_mutex);
             std::pair<int, int> head;
-            int id;
+            int id; // the subject
             unbox(id, head, cur_str);
-            // judge if circled
+            // if new player
             if (id_set.find(id) != id_set.end())
             {
                 game_win->create_initial_territory(head.first, head.second, id);
             }
+            // judge if circled
             else if (game_win->is_enclosure(head.first, head.second, id))
             {
                 auto inside_points = game_win->find_inside_points(id);
@@ -176,12 +177,16 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 if (map[head.first][head.second] != 0) // someone die
                 {
                     int target_id = map[head.first][head.second];
-                    if (target_id == player.id)
+                    if (target_id == player.id) // you die
                     {
                         game_win->exit_game(0);
                         return true;
                     }
-                    else // clear other's territory
+                    else if (target_id == id) // he suicide
+                    {
+                        delete_id(id_set, id);
+                    }
+                    else // he kill
                     {
                         delete_id(id_set, target_id);
                     }
