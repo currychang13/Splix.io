@@ -49,6 +49,19 @@ void update_idset_and_map(std::set<int> &id_set)
     }
 }
 
+void delete_id(std::set<int> &id_set, int id)
+{
+    id_set.erase(id);
+    for (int i = 0; i < MAP_HEIGHT; i++)
+    {
+        for (int j = 0; j < MAP_WIDTH; j++)
+        {
+            if (map[i][j] == id || map[i][j] == -id)
+                map[i][j] = 0;
+        }
+    }
+}
+
 void unbox(int &id, std::pair<int, int> &head, std::string str)
 {
     std::stringstream ss(str);
@@ -159,7 +172,22 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 game_win->fill_territory(inside_points, id);
             }
             else
+            {
+                if (map[head.first][head.second] != 0) // someone die
+                {
+                    int target_id = map[head.first][head.second];
+                    if (target_id == player.id)
+                    {
+                        game_win->exit_game(0);
+                        return true;
+                    }
+                    else // clear other's territory
+                    {
+                        delete_id(id_set, target_id);
+                    }
+                }
                 map[head.first][head.second] = id;
+            }
             game_win->render_game(head.first, head.second, player);
         }
 #endif
@@ -175,9 +203,8 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 switch (ch)
                 {
                 case 'q':
-                    wattroff(game_win->win, COLOR_PAIR(player.id) | A_BOLD);
-                    // udp.send_leave_game();
-                    // send to server
+                    // wattroff(game_win->win, COLOR_PAIR(player.id) | A_BOLD);
+                    //  udp.send_leave_game();
                     game_win->exit_game(1);
                     return false;
                 case 'w':

@@ -640,7 +640,7 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player
     }
 }
 
-void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x,int id)
+void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x, int id)
 {
     // create initial territory
     // 1. create a rectangle
