@@ -47,7 +47,6 @@ struct PlayerThreadArgs
     int clientFd;
     GameManager *gameManager;
     int roomId;
-    int playerId;
     int udpPort;
 
     PlayerThreadArgs() : udpPort(nextPort++) {}
@@ -294,12 +293,17 @@ void *playerThreadFunction(void *args)
     // 2.choose a random point on the map and broadcast to all player
     // 3.send initial map to that client
     // 4.recv player updated position and broadcast to other players
-    // 5.
     PlayerThreadArgs *Playerargs = (PlayerThreadArgs *)args;
 
     // init gamestate
     auto &gameState = Playerargs->gameManager->gameStates[Playerargs->roomId];
-
+    for (int i = 0; i < MAP_WIDTH; ++i)
+    {
+        for (int j = 0; j < MAP_HEIGHT; ++j)
+        {
+            gameState.map[i][j] = 0;        }
+    }
+    
     // 1.create udpSocket------------------------------------------------------
     int udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
     if (udpSocket < 0)
@@ -359,8 +363,10 @@ void *playerThreadFunction(void *args)
             }
         }
     }
+    Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen, gameState.nextPlayerId, 0, 0, {0, 1});
+    gameState.players[udpSocket] = player;
     int playerId = gameState.nextPlayerId;
-    std::string position = std::to_string(playerId) + std::to_string(start_y) + " " + std::to_string(start_x);
+    std::string position = std::to_string(playerId) + " " + std::to_string(start_y) + " " + std::to_string(start_x);
     Playerargs->gameManager->broadcastMessage(playerId, position, udpSocket, Playerargs->roomId);
     //---------------------------------------------------------------------------
 
@@ -370,16 +376,16 @@ void *playerThreadFunction(void *args)
     {
         for (int j = 0; j < MAP_HEIGHT; ++j)
         {
-            initMap += gameState.map[i][j] + " ";
+            initMap += std::to_string(gameState.map[i][j]) + " ";
         }
     }
+    std::cout << initMap << "\n";
     sendto(udpSocket, initMap.c_str(), initMap.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     //----------------------------------------------------------------------
-    Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen, gameState.nextPlayerId, 0, 0, {0, 1});
     std::cout << "PlayerId : " << playerId << "\n";
     std::cout << start_y << " " << start_x << "\n";
     // Assign the player's ID to the map
-    gameState.players[udpSocket] = player;
+    
     // for (const auto &[fd, player] : gameState.players)
     // {
     //     std::cout << "Player FD: " << fd << "\n";
@@ -413,8 +419,8 @@ void *playerThreadFunction(void *args)
         // Handle the received message
         Playerargs->gameManager->broadcastMessage(playerId, message, udpSocket, Playerargs->roomId);
         std::stringstream ss(message);
-        int y, x;
-        ss >> y >> x;
+        int y, x, id;
+        ss >> id >> y >> x;
         // update map
         if (gameState.map[y][x] == playerId || y <= 0 || y >= MAP_WIDTH || x <= 0 || x >= MAP_HEIGHT) // die
         {
@@ -651,7 +657,6 @@ void GameManager::broadcastMessage(int playerId, const std::string &message, int
 {
     for (const auto &[otherFd, otherPlayer] : gameStates[roomId].players)
     {
-        // Send diffMsg
         sendto(otherFd, message.c_str(), message.length(), 0, gameStates[roomId].players[otherFd].addr, gameStates[roomId].players[otherFd].len);
         std::cout << "Sent to FD " << otherFd << ": " << message << "\n";
     }
