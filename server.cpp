@@ -301,9 +301,10 @@ void *playerThreadFunction(void *args)
     {
         for (int j = 0; j < MAP_HEIGHT; ++j)
         {
-            gameState.map[i][j] = 0;        }
+            gameState.map[i][j] = 0;
+        }
     }
-    
+
     // 1.create udpSocket------------------------------------------------------
     int udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
     if (udpSocket < 0)
@@ -366,7 +367,9 @@ void *playerThreadFunction(void *args)
     Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen, gameState.nextPlayerId, 0, 0, {0, 1});
     gameState.players[udpSocket] = player;
     int playerId = gameState.nextPlayerId;
-    std::string position = std::to_string(playerId) + " " + std::to_string(start_y) + " " + std::to_string(start_x);
+    std::string Id = std::to_string(playerId);
+    Playerargs->gameManager->broadcastMessage(playerId, Id, udpSocket, Playerargs->roomId);
+    std::string position = std::to_string(start_y) + " " + std::to_string(start_x);
     Playerargs->gameManager->broadcastMessage(playerId, position, udpSocket, Playerargs->roomId);
     //---------------------------------------------------------------------------
 
@@ -385,7 +388,7 @@ void *playerThreadFunction(void *args)
     std::cout << "PlayerId : " << playerId << "\n";
     std::cout << start_y << " " << start_x << "\n";
     // Assign the player's ID to the map
-    
+
     // for (const auto &[fd, player] : gameState.players)
     // {
     //     std::cout << "Player FD: " << fd << "\n";
