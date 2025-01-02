@@ -435,6 +435,7 @@ void *playerThreadFunction(void *args)
                         gameState.map[y][x] = 0;
                 }
             }
+            close(udpSocket);
         }
         else if (gameState.map[y][x] == -playerId)
         {
@@ -455,6 +456,7 @@ void *playerThreadFunction(void *args)
                         gameState.map[y][x] = 0;
                 }
             }
+            close(udpSocket);
         }
         else
         {

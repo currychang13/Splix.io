@@ -66,13 +66,6 @@ void unbox(int &id, std::pair<int, int> &head, std::string str)
 {
     std::stringstream ss(str);
     std::string token;
-    // if (token[0] == '-')
-    // {
-    //     token = token.substr(1);
-    //     value = -std::stoi(token);
-    // }
-    // else
-    // {
     ss >> token;
     id = std::stoi(token);
     // }
@@ -161,6 +154,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             pthread_mutex_unlock(&queue_mutex);
             std::pair<int, int> head;
             int id; // the subject
+
             unbox(id, head, cur_str);
             // if new player
             if (id_set.find(id) != id_set.end())
@@ -201,8 +195,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
             (player.mode == Mode::FAST && ticker_fast.is_tick_due()) || (ticker_slow.is_tick_due() && player.mode == Mode::SLOW))
         {
-            std::cerr << "hi\n";
-            sleep(1);
+
             int ch = wgetch(game_win->win);
             std::pair<int, int> new_direction = player.direction;
             flushinp();
