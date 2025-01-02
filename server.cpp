@@ -57,14 +57,14 @@ int PlayerThreadArgs::nextPort = 14000;
 // Client Information Structure
 struct ClientInfo
 {
-    int fd;
+    int Tcpfd;
     std::string username;
     ClientState state;
     int roomId;
     int udpFd;       // UDP socket file descriptor
     bool udpAddrSet; // Flag to indicate if UDP address is set
 
-    ClientInfo() : fd(-1), roomId(-1), udpFd(-1), udpAddrSet(false) {}
+    ClientInfo() : Tcpfd(-1), roomId(-1), udpFd(-1), udpAddrSet(false) {}
 };
 
 // Room Structure
@@ -366,6 +366,10 @@ void *playerThreadFunction(void *args)
     }
     Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen, gameState.nextPlayerId, 0, 0, {0, 1});
     gameState.players[udpSocket] = player;
+    for (const auto &[otherFd, otherPlayer] : Playerargs->gameManager->gameStates[Playerargs->roomId].players)
+    {
+        std::cout << "Set " << otherFd << ": " << "\n";
+    }
     int playerId = gameState.nextPlayerId;
     std::string Id = std::to_string(playerId);
     Playerargs->gameManager->broadcastMessage(playerId, Id, udpSocket, Playerargs->roomId);
@@ -400,6 +404,9 @@ void *playerThreadFunction(void *args)
         socklen_t clilen = sizeof(cliaddr);
         memset(buffer, 0, sizeof(buffer));
         ssize_t bytesRead = recvfrom(udpSocket, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&cliaddr, &clilen);
+        buffer[bytesRead] = '\0';
+        std::string message(buffer);
+
         std::cout << udpSocket << " " << buffer << "\n";
         if (bytesRead <= 0)
         {
@@ -417,10 +424,12 @@ void *playerThreadFunction(void *args)
             return nullptr;
         }
 
-        buffer[bytesRead] = '\0';
-        std::string message(buffer);
         // Handle the received message
         Playerargs->gameManager->broadcastMessage(playerId, message, udpSocket, Playerargs->roomId);
+        for (const auto &[otherFd, otherPlayer] : Playerargs->gameManager->gameStates[Playerargs->roomId].players)
+        {
+            std::cout << "Set " << otherFd << ": " << "\n";
+        }
         std::stringstream ss(message);
         int y, x, id;
         ss >> id >> y >> x;
@@ -435,7 +444,8 @@ void *playerThreadFunction(void *args)
                         gameState.map[y][x] = 0;
                 }
             }
-            close(udpSocket);
+            Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
+            return nullptr;
         }
         else if (gameState.map[y][x] == -playerId)
         {
@@ -456,12 +466,22 @@ void *playerThreadFunction(void *args)
                         gameState.map[y][x] = 0;
                 }
             }
-            close(udpSocket);
+            Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
+            return nullptr;
         }
         else
         {
             gameState.map[y][x] = playerId;
         }
+    }
+}
+
+void GameManager::broadcastMessage(int playerId, const std::string &message, int udpSock, int roomId)
+{
+    for (const auto &[otherFd, otherPlayer] : gameStates[roomId].players)
+    {
+        sendto(otherFd, message.c_str(), message.length(), 0, gameStates[roomId].players[otherFd].addr, gameStates[roomId].players[otherFd].len);
+        std::cout << "Sent to FD " << otherFd << ": " << message << "\n";
     }
 }
 
@@ -482,9 +502,6 @@ void GameManager::handlePlayerDeath(int roomId, int udpSocket, int clientFd)
     // Retrieve player information
     int playerId = playerIt->second.playerId;
 
-    // Clear the player's position from the map
-    gameState.map[playerIt->second.y][playerIt->second.x] = 0;
-    std::string yx;
     // Iterate through the entire map to clear all cells associated with this player
     for (int y = 0; y < MAP_HEIGHT; ++y)
     {
@@ -493,13 +510,9 @@ void GameManager::handlePlayerDeath(int roomId, int udpSocket, int clientFd)
             if (gameState.map[y][x] == playerId || gameState.map[y][x] == -playerId)
             {
                 gameState.map[y][x] = 0;
-                yx += std::to_string(y) + " " + std::to_string(x) + " ";
             }
         }
     }
-    std::string diffMsg = "";
-    diffMsg += std::to_string(0) + " " + "NORMAL" + " " + yx;
-    std::cout << diffMsg << "\n";
 
     // Reset UDP connection information
     server->clients[udpSocket].udpFd = -1;
@@ -658,15 +671,6 @@ void GameManager::fillTerritory(const std::vector<std::pair<int, int>> &inside_p
     pthread_mutex_unlock(&server->getGameMutex());
 }
 
-void GameManager::broadcastMessage(int playerId, const std::string &message, int udpSock, int roomId)
-{
-    for (const auto &[otherFd, otherPlayer] : gameStates[roomId].players)
-    {
-        sendto(otherFd, message.c_str(), message.length(), 0, gameStates[roomId].players[otherFd].addr, gameStates[roomId].players[otherFd].len);
-        std::cout << "Sent to FD " << otherFd << ": " << message << "\n";
-    }
-}
-
 // Implementation of Server Methods
 Server::Server(int port)
     : listenfd(-1), maxfd(-1),
@@ -773,7 +777,7 @@ void Server::handleNewConnection()
 
     // Initialize ClientInfo with state WAITING_USERNAME
     ClientInfo ci;
-    ci.fd = connfd;
+    ci.Tcpfd = connfd;
     ci.username = "";
     ci.state = ClientState::WAITING_USERNAME;
     // Store the client information
