@@ -872,7 +872,6 @@ void Server::processMessage(int clientFd)
         if (message != "start")
         {
             // Update client's state back to ROOM_SELECTION
-
             // Retrieve the room ID the client is currently in
             int roomId = clients[clientFd].roomId;
 
