@@ -15,6 +15,7 @@
 #include <pthread.h>
 #include <fstream>
 #include <map>
+#include <set>
 
 #define MAP_HEIGHT 100
 #define MAP_WIDTH 100
@@ -217,17 +218,15 @@ public:
 class Splix_Window : public Window
 {
 public:
-    int id;
+    // int id;
     std::vector<std::vector<int>> previous_map;
     Splix_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
-    void create_initial_territory(int coordinate_y, int coordinate_x);
-    void render_game(int coordinate_y, int coordinate_x, Mode mode, Player player, int id);
+    void create_initial_territory(int coordinate_y, int coordinate_x, int id);
+    void render_game(int coordinate_y, int coordinate_x, Player player);
     void exit_game(int flag);
-    bool is_enclosure(int coordinate_y, int coordinate_x);
-    std::vector<std::pair<int, int>> find_inside_points();
-    void fill_territory(const std::vector<std::pair<int, int>> &inside_points);
-    bool check_valid_position(int coordinate_y, int coordinate_x);
-    void initialize_buffer();
+    bool is_enclosure(int coordinate_y, int coordinate_x, int id);
+    std::vector<std::pair<int, int>> find_inside_points(int id);
+    void fill_territory(const std::vector<std::pair<int, int>> &inside_points, int id);
     std::vector<std::pair<int, int>> Heads;
 };
 
@@ -290,7 +289,7 @@ public:
     int port;
     struct sockaddr_in servaddr;
     void udp_connect();
-    void send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode);
+    void send_server_position(Player player);
     void send_leave_game();
     int get_id_from_server();
     std::pair<int, int> get_position_from_server();

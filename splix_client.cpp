@@ -16,42 +16,57 @@ std::vector<std::string> member_info;
 std::queue<std::string> message_queue;
 pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for queue
 
-std::pair<int, int> unbox(std::string str, Mode &mode, int &value) // value mode head_x head_y x y x y x y
+void update_idset_and_map(std::set<int> &id_set)
+{
+    // receive map and update idset from server
+    char buffer[MAP_HEIGHT * MAP_WIDTH];
+    int n;
+    if ((n = read(udp.sockfd, buffer, sizeof(buffer))) < 0)
+    {
+        perror("read");
+        exit(1);
+    }
+    buffer[n] = '\0';
+    std::stringstream ss(buffer);
+    std::string token;
+    int i = 0;
+    while (ss >> token)
+    {
+        int id;
+        if (token[0] == '-')
+        {
+            token = token.substr(1);
+            id = -std::stoi(token);
+        }
+        else
+        {
+            id = std::stoi(token);
+        }
+        if (id != 0)
+            id_set.insert(id);
+        map[i / MAP_WIDTH][i % MAP_WIDTH] = id;
+        i++;
+    }
+}
+
+void unbox(int &id, std::pair<int, int> &head, std::string str)
 {
     std::stringstream ss(str);
-    std::string token, tokenY, tokenX;
+    std::string token;
+    // if (token[0] == '-')
+    // {
+    //     token = token.substr(1);
+    //     value = -std::stoi(token);
+    // }
+    // else
+    // {
     ss >> token;
-    if (token[0] == '-')
-    {
-        for (int i = 0; i < token.length() - 1; i++)
-        {
-            token[i] = token[i + 1];
-        }
-        value = (-1) * std::stoi(token);
-        std::cerr << value;
-        napms(1000);
-    }
-    else
-    {
-        value = std::stoi(token);
-    }
+    id = std::stoi(token);
+    // }
     ss >> token;
-    mode = (token == "FAST") ? Mode::FAST : Mode::NORMAL;
-
-    int head_x, head_y;
+    head.first = std::stoi(token);
     ss >> token;
-    head_y = std::stoi(token);
-    ss >> token;
-    head_x = std::stoi(token);
-    map[head_y][head_x] = value;
-
-    while (ss >> tokenY >> tokenX)
-    {
-        int y = std::stoi(tokenY);
-        int x = std::stoi(tokenX);
-        map[y][x] = value;
-    }
-    return {head_y, head_x};
+    head.second = std::stoi(token);
 }
 
 void *listen_to_server(void *arg)
@@ -81,12 +96,21 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     keypad(game_win->win, TRUE);
     setlocale(LC_ALL, "");
     message_queue = std::queue<std::string>();
+    std::set<int> id_set;
+
+    for (int i = 0; i < MAP_HEIGHT; i++)
+    {
+        for (int j = 0; j < MAP_WIDTH; j++)
+        {
+            map[i][j] = 0;
+        }
+    }
 
 #ifndef DEBUG
     udp.udp_connect();
     std::pair<int, int> position = udp.get_position_from_server();
     player.init(position, {0, 1}, udp.get_id_from_server(), Mode::NORMAL, acc_time, 0, 0);
-    game_win->id = player.id;
+    update_idset_and_map(id_set); // receive map and update idset from server
 
     pthread_t server_thread;
     if (pthread_create(&server_thread, NULL, listen_to_server, &udp.sockfd) != 0)
@@ -98,13 +122,11 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
 #ifdef DEBUG
     player.init({rand() % (MAP_HEIGHT - 20), rand() % (MAP_WIDTH - 20)}, {0, 1}, 9, Mode::NORMAL, acc_time, 0, 0);
-    game_win->id = player.id;
 #endif
 
     game_win->draw();
-    game_win->create_initial_territory(player.coordinate_y, player.coordinate_x);
-    game_win->initialize_buffer();
-    game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode, player, player.id);
+    game_win->create_initial_territory(player.coordinate_y, player.coordinate_x, player.id); // server broadcast the position
+    game_win->render_game(player.coordinate_y, player.coordinate_x, player);
     stat_win->draw();
     stat_win->update_status(player.coordinate_y, player.coordinate_x, "NORMAL", player.id);
     stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
@@ -117,20 +139,31 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     while (true)
     {
 #ifndef DEBUG
-
         if (!message_queue.empty())
         {
             pthread_mutex_lock(&queue_mutex);
             std::string cur_str = message_queue.front();
             message_queue.pop();
             pthread_mutex_unlock(&queue_mutex);
-            int id;
             std::pair<int, int> head;
-            Mode mode;
-            head = unbox(cur_str, mode, id);
-            game_win->render_game(head.first, head.second, mode, player, id);
+            int id;
+            unbox(id, head, cur_str);
+            // judge if circled
+            if (id_set.find(id) != id_set.end())
+            {
+                game_win->create_initial_territory(head.first, head.second, id);
+            }
+            else if (game_win->is_enclosure(head.first, head.second, id))
+            {
+                auto inside_points = game_win->find_inside_points(id);
+                game_win->fill_territory(inside_points, id);
+            }
+            else
+                map[head.first][head.second] = id;
+            game_win->render_game(head.first, head.second, player);
         }
 #endif
+
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
             (player.mode == Mode::FAST && ticker_fast.is_tick_due()) || ticker_slow.is_tick_due() && player.mode == Mode::SLOW)
         {
@@ -143,7 +176,8 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 {
                 case 'q':
                     wattroff(game_win->win, COLOR_PAIR(player.id) | A_BOLD);
-                    udp.send_leave_game();
+                    // udp.send_leave_game();
+                    // send to server
                     game_win->exit_game(1);
                     return false;
                 case 'w':
@@ -223,29 +257,28 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             player.coordinate_x += player.direction.second;
 
             // send to server
-            udp.send_server_position(player.coordinate_y, player.coordinate_x, player.id, player.mode);
+            udp.send_server_position(player);
 
             // Check if the player dies from going out of bounds
             if (player.coordinate_y < 1 || player.coordinate_y >= MAP_HEIGHT - 1 || player.coordinate_x < 1 || player.coordinate_x >= MAP_WIDTH - 1 || map[player.coordinate_y][player.coordinate_x] == player.id)
             {
-                udp.send_leave_game();
+                // udp.send_leave_game();
                 game_win->exit_game(0); // die
                 return true;
             }
             // Handle territory and update map
             if (map[player.coordinate_y][player.coordinate_x] == -player.id)
             {
-                if (game_win->is_enclosure(player.coordinate_y, player.coordinate_x))
+                if (game_win->is_enclosure(player.coordinate_y, player.coordinate_x, player.id))
                 {
-                    auto inside_points = game_win->find_inside_points();
-                    std::string message = "";
-                    game_win->fill_territory(inside_points);
+                    auto inside_points = game_win->find_inside_points(player.id);
+                    game_win->fill_territory(inside_points, player.id);
                 }
             }
             else
                 map[player.coordinate_y][player.coordinate_x] = player.id;
 
-            game_win->render_game(player.coordinate_y, player.coordinate_x, player.mode, player, player.id);
+            game_win->render_game(player.coordinate_y, player.coordinate_x, player);
             stat_win->update_status(player.coordinate_y, player.coordinate_x,
                                     (player.mode == Mode::FAST) ? "BURST" : (player.mode == Mode::NORMAL) ? "NORMAL"
                                                                                                           : "SLOW",
@@ -253,14 +286,14 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
             wrefresh(stat_win->win);
         }
-    }
-#ifndef DEBUG
-    pthread_cancel(server_thread);
-    close(udp.sockfd);
-#endif
-    return false;
-}
 
+#ifndef DEBUG
+        pthread_cancel(server_thread);
+        close(udp.sockfd);
+#endif
+        return false;
+    }
+}
 int main()
 {
     setlocale(LC_ALL, "");

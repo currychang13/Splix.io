@@ -574,13 +574,7 @@ void Input_Window::get_user_input()
     }
 }
 
-// Splix_Window functions
-void Splix_Window::initialize_buffer()
-{
-    previous_map = std::vector<std::vector<int>>(MAP_HEIGHT, std::vector<int>(MAP_WIDTH, 0));
-}
-
-void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode, Player player, int id)
+void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player)
 {
     int half_rows = height / 2;
     int half_cols = width / 2;
@@ -630,10 +624,10 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode, Pl
             else if (value > 0)
             {
                 color_pair = (value % 10);
-                if (mode == Mode::FAST && value == id)
-                    symbol = L"★";
-                else
-                    symbol = L"▪";
+                // if (mode == Mode::FAST && value == id)
+                //     symbol = L"★";
+                // else
+                symbol = L"▪";
             }
             if (map_y == coordinate_y && map_x == coordinate_x || map_y == player.coordinate_y && map_x == player.coordinate_x)
             {
@@ -646,7 +640,7 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Mode mode, Pl
     }
 }
 
-void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
+void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x,int id)
 {
     // create initial territory
     // 1. create a rectangle
@@ -666,7 +660,7 @@ void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x)
         }
     }
 }
-bool Splix_Window::is_enclosure(int y, int x)
+bool Splix_Window::is_enclosure(int y, int x, int id)
 {
     // BFS to determine if the trail forms a closed boundary
     std::vector<std::vector<bool>> visited(MAP_HEIGHT, std::vector<bool>(MAP_WIDTH, false));
@@ -714,7 +708,7 @@ bool Splix_Window::is_enclosure(int y, int x)
     // If the component touches the border, it's not an enclosure
     return !touches_border;
 }
-std::vector<std::pair<int, int>> Splix_Window::find_inside_points()
+std::vector<std::pair<int, int>> Splix_Window::find_inside_points(int id)
 {
     std::vector<std::vector<bool>> visited(MAP_HEIGHT, std::vector<bool>(MAP_WIDTH, false));
     std::queue<std::pair<int, int>> q;
@@ -790,41 +784,16 @@ std::vector<std::pair<int, int>> Splix_Window::find_inside_points()
     }
     return inside_points;
 }
-void Splix_Window::fill_territory(const std::vector<std::pair<int, int>> &inside_points)
+void Splix_Window::fill_territory(const std::vector<std::pair<int, int>> &inside_points, int id)
 {
     for (const auto &[y, x] : inside_points)
     {
         map[y][x] = -id; // Mark as filled territory
     }
 }
-bool Splix_Window::check_valid_position(int coordinate_y, int coordinate_x)
-{
-    // three cases
-    //  1. empty territory or other player's territory
-    //  2. territory of the player(-id), fill territory
-    //  3. trail of the player(id), die
-    //  4. out of bound, die
-    // out of bound or touch the trail -> die
-    if (coordinate_y < 1 || coordinate_y >= MAP_HEIGHT - 1 || coordinate_x < 1 || coordinate_x >= MAP_WIDTH - 1 || map[coordinate_y][coordinate_x] == id)
-    {
-        exit_game(0); // die
-        return false;
-    }
-    return true;
-}
+
 void Splix_Window::exit_game(int flag)
 {
-    // send to server
-    for (int i = 0; i < HEIGHT_GAME_WIN; i++)
-    {
-        for (int j = 0; j < WIDTH_GAME_WIN; j++)
-        {
-            if (map[i][j] == -id)
-            {
-                map[i][j] = 0;
-            }
-        }
-    }
     // animation
     if (flag == 1) // NORMAL exit
     {
@@ -969,10 +938,10 @@ void UdpContent::udp_connect()
     send(sockfd, "ack", 3, MSG_CONFIRM);
     // sendto(sockfd, "ack", 3, MSG_CONFIRM, (const sockaddr *)&servaddr, sizeof(servaddr));
 }
-void UdpContent::send_server_position(int coordinate_y, int coordinate_x, int id, Mode mode)
+void UdpContent::send_server_position(Player player)
 {
     char message[BUFFER_SIZE] = "";
-    sprintf(message, "%d %d %s", coordinate_y, coordinate_x, mode == Mode::FAST ? "FAST" : "NORMAL"); // send position, mode to server
+    sprintf(message, "%d %d %d", player.id, player.coordinate_y, player.coordinate_x); // send position, mode to server
     napms(1);
     send(sockfd, message, strlen(message), MSG_CONFIRM);
 }
