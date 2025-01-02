@@ -473,6 +473,7 @@ void *playerThreadFunction(void *args)
         {
             gameState.map[y][x] = playerId;
         }
+
     }
 }
 
