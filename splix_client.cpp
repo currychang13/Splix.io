@@ -84,6 +84,7 @@ void unbox(int &id, std::pair<int, int> &head, std::string str)
 
 void *listen_to_server(void *arg)
 {
+    pthread_detach(pthread_self());
     int sockfd = *(int *)arg;
     char buffer[BUFFER_SIZE];
     struct sockaddr_in from_addr;
@@ -121,8 +122,9 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
 #ifndef DEBUG
     udp.udp_connect();
+    int cli_id = udp.get_id_from_server();
     std::pair<int, int> position = udp.get_position_from_server();
-    player.init(position, {0, 1}, udp.get_id_from_server(), Mode::NORMAL, acc_time, 0, 0);
+    player.init(position, {0, 1}, cli_id, Mode::NORMAL, acc_time, 0, 0);
     update_idset_and_map(id_set); // receive map and update idset from server
 
     pthread_t server_thread;
@@ -148,7 +150,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     GameTicker ticker_slow(5);
     GameTicker ticker_normal(15);
     GameTicker ticker_fast(45);
-
     while (true)
     {
 #ifndef DEBUG
@@ -198,8 +199,10 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 #endif
 
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
-            (player.mode == Mode::FAST && ticker_fast.is_tick_due()) || ticker_slow.is_tick_due() && player.mode == Mode::SLOW)
+            (player.mode == Mode::FAST && ticker_fast.is_tick_due()) || (ticker_slow.is_tick_due() && player.mode == Mode::SLOW))
         {
+            std::cerr << "hi\n";
+            sleep(1);
             int ch = wgetch(game_win->win);
             std::pair<int, int> new_direction = player.direction;
             flushinp();
@@ -291,8 +294,9 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             player.coordinate_x += player.direction.second;
 
             // send to server
+#ifndef DEBUG
             udp.send_server_position(player);
-
+#endif
             // Check if the player dies from going out of bounds
             if (player.coordinate_y < 1 || player.coordinate_y >= MAP_HEIGHT - 1 || player.coordinate_x < 1 || player.coordinate_x >= MAP_WIDTH - 1 || map[player.coordinate_y][player.coordinate_x] == player.id)
             {
@@ -320,13 +324,12 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
             wrefresh(stat_win->win);
         }
-
-#ifndef DEBUG
-        pthread_cancel(server_thread);
-        close(udp.sockfd);
-#endif
-        return false;
     }
+#ifndef DEBUG
+    pthread_cancel(server_thread);
+    close(udp.sockfd);
+#endif
+    return false;
 }
 int main()
 {

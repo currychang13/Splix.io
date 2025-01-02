@@ -55,7 +55,6 @@ enum Mode
 };
 
 extern int map[MAP_HEIGHT][MAP_WIDTH];
-extern int alter[MAP_HEIGHT][MAP_WIDTH];
 
 class Player
 {

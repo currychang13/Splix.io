@@ -624,9 +624,6 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player
             else if (value > 0)
             {
                 color_pair = (value % 10);
-                // if (mode == Mode::FAST && value == id)
-                //     symbol = L"★";
-                // else
                 symbol = L"▪";
             }
             if (map_y == coordinate_y && map_x == coordinate_x || map_y == player.coordinate_y && map_x == player.coordinate_x)
