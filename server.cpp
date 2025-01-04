@@ -128,7 +128,6 @@ GameManager::GameManager(Server *serverInstance)
 
 void GameManager::initializeGameState(int roomId, int clientFd)
 {
-    std::cout << "Initializing game state for room " << roomId << std::endl;
 
     if (gameStates.find(roomId) == gameStates.end())
     {
@@ -144,6 +143,7 @@ void GameManager::initializeGameState(int roomId, int clientFd)
         }
         // Store the game state
         gameStates[roomId] = gameState;
+        std::cout << "Initializing game state for room " << roomId << std::endl;
     }
 }
 
@@ -251,10 +251,9 @@ void *playerThreadFunction(void *args)
     pthread_mutex_unlock(&Playerargs->gameManager->gameMutex);
 
     int playerId = player.playerId;
-    std::string Id = std::to_string(playerId);
-    sendto(udpSocket, Id.c_str(), Id.length(), 0, (struct sockaddr *)&cliaddr, clilen);
-    std::string position = std::to_string(start_y) + " " + std::to_string(start_x);
-    sendto(udpSocket, position.c_str(), position.length(), 0, (struct sockaddr *)&cliaddr, clilen);
+    std::string IdPosition = std::to_string(playerId) + " " + std::to_string(start_y) + " " + std::to_string(start_x);
+    Playerargs->gameManager->broadcastMessage(playerId, IdPosition, udpSocket, Playerargs->roomId);
+
     //---------------------------------------------------------------------------
 
     // 3. initial map--------------------------------------------------------
@@ -432,7 +431,6 @@ void GameManager::handlePlayerDeath(int roomId, int udpSocket, int clientFd)
     std::cout << "Player ID " << playerId << " (udpsocket " << udpSocket
               << ") died.\n";
 }
-
 
 std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId, int playerId)
 {
