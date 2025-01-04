@@ -112,13 +112,14 @@ class GameManager
 {
 public:
     GameManager(Server *serverInstance);
-    pthread_mutex_t gameMutex = PTHREAD_MUTEX_INITIALIZER;
     void broadcastMessage(int playerId, const std::string &message, int udpSock, int roomId);
+    void broadcastMessageExceptYourself(int playerId, const std::string &message, int udpSock, int roomId);
     void initializeGameState(int roomId, int clientFd);
     void addPlayerToGame(int roomId, int clientFd);
     std::vector<std::pair<int, int>> findInsidePoints(int roomId, int clientFd);
     void fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId, int clientFd);
     void handlePlayerDeath(int roomId, int udpSocket, int clientFd);
+    pthread_mutex_t gameMutex = PTHREAD_MUTEX_INITIALIZER;
     Server *server;                      // Pointer back to Server
     std::map<int, GameState> gameStates; // roomId -> GameState
 private:
@@ -323,7 +324,7 @@ void *playerThreadFunction(void *args)
             std::cout << udpSocket << " " << buffer << "\n";
 
             // Handle the received message
-            Playerargs->gameManager->broadcastMessage(playerId, message, udpSocket, Playerargs->roomId);
+            Playerargs->gameManager->broadcastMessageExceptYourself(playerId, message, udpSocket, Playerargs->roomId);
             std::stringstream ss(message);
             int y, x, id;
             ss >> id >> y >> x;
@@ -378,10 +379,22 @@ void *playerThreadFunction(void *args)
 
 void GameManager::broadcastMessage(int playerId, const std::string &message, int udpSock, int roomId)
 {
+    for (const auto &[allFd, allPlayer] : gameStates[roomId].players)
+    {
+        sendto(allFd, message.c_str(), message.length(), 0, gameStates[roomId].players[allFd].addr, gameStates[roomId].players[allFd].len);
+        std::cout << "Sent to FD " << allFd << ": " << message << "\n";
+    }
+}
+
+void GameManager::broadcastMessageExceptYourself(int playerId, const std::string &message, int udpSock, int roomId)
+{
     for (const auto &[otherFd, otherPlayer] : gameStates[roomId].players)
     {
-        sendto(otherFd, message.c_str(), message.length(), 0, gameStates[roomId].players[otherFd].addr, gameStates[roomId].players[otherFd].len);
-        std::cout << "Sent to FD " << otherFd << ": " << message << "\n";
+        if (otherFd != udpSock)
+        {
+            sendto(otherFd, message.c_str(), message.length(), 0, gameStates[roomId].players[otherFd].addr, gameStates[roomId].players[otherFd].len);
+            std::cout << "Sent to FD " << otherFd << ": " << message << "\n";
+        }
     }
 }
 
