@@ -342,20 +342,10 @@ void *playerThreadFunction(void *args)
             {
                 auto inside_points = Playerargs->gameManager->findInsidePoints(Playerargs->roomId, playerId);
                 Playerargs->gameManager->fillTerritory(inside_points, Playerargs->roomId, playerId);
-
-                std::string initMap = "";
-                for (int i = 0; i < MAP_WIDTH; ++i)
-                {
-                    for (int j = 0; j < MAP_HEIGHT; ++j)
-                    {
-                        initMap += std::to_string(gameState.map[i][j]) + " ";
-                    }
-                    initMap += "\n";
-                }
-                std::cout << initMap << "\n";
             }
             else if (gameState.map[y][x] > 0)
             {
+                gameState.map[y][x] = playerId;
                 int killedId = gameState.map[y][x];
                 Playerargs->gameManager->handlePlayerDeath(killedId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
                 return nullptr;
