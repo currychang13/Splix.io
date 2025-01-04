@@ -163,13 +163,13 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 game_win->create_initial_territory(head.first, head.second, id);
             }
             // judge if circled
-            else if (game_win->is_enclosure(head.first, head.second, id))
+            if (game_win->is_enclosure(head.first, head.second, id))
             {
                 auto inside_points = game_win->find_inside_points(id);
                 game_win->fill_territory(inside_points, id);
             }
-            //he touch boundary
-            else if (head.first < 1 || head.first >= MAP_HEIGHT - 1 || head.second < 1 || head.second >= MAP_WIDTH - 1)
+            // he touch boundary
+            if (head.first < 1 || head.first >= MAP_HEIGHT - 1 || head.second < 1 || head.second >= MAP_WIDTH - 1 || map[head.first][head.second] == id)
             {
                 delete_id(id_set, id);
             }
@@ -182,10 +182,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                     {
                         game_win->exit_game(0);
                         return true;
-                    }
-                    else if (target_id == id) // he suicide
-                    {
-                        delete_id(id_set, id);
                     }
                     else // he kill
                     {
@@ -299,10 +295,10 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             // Check if the player dies from going out of bounds
             if (player.coordinate_y < 1 || player.coordinate_y >= MAP_HEIGHT - 1 || player.coordinate_x < 1 || player.coordinate_x >= MAP_WIDTH - 1 || map[player.coordinate_y][player.coordinate_x] == player.id)
             {
-                // udp.send_leave_game();
                 game_win->exit_game(0); // die
                 return true;
             }
+
             // Handle territory and update map
             if (map[player.coordinate_y][player.coordinate_x] == -player.id)
             {
@@ -311,6 +307,13 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                     auto inside_points = game_win->find_inside_points(player.id);
                     game_win->fill_territory(inside_points, player.id);
                 }
+            }
+
+            // player kill
+            if (map[player.coordinate_y][player.coordinate_x] > 0)
+            {
+                int target_id = map[player.coordinate_y][player.coordinate_x];
+                delete_id(id_set, target_id);
             }
             else
                 map[player.coordinate_y][player.coordinate_x] = player.id;
