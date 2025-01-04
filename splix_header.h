@@ -17,8 +17,8 @@
 #include <map>
 #include <set>
 
-#define MAP_HEIGHT 100
-#define MAP_WIDTH 100
+#define MAP_HEIGHT 50
+#define MAP_WIDTH 50
 
 #define SERVER_IP "127.0.0.1" //"140.113.66.205"
 
