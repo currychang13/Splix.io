@@ -118,7 +118,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     std::pair<int, int> position;
     udp.get_initial_data(cli_id, position);
     player.init(position, {0, 1}, cli_id, Mode::NORMAL, acc_time, 0, 0);
-    id_set.insert(cli_id);  
+    id_set.insert(cli_id);
     update_idset_and_map(id_set); // receive map and update idset from server
 
     pthread_t server_thread;
@@ -167,6 +167,11 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             {
                 auto inside_points = game_win->find_inside_points(id);
                 game_win->fill_territory(inside_points, id);
+            }
+            //he touch boundary
+            else if (head.first < 1 || head.first >= MAP_HEIGHT - 1 || head.second < 1 || head.second >= MAP_WIDTH - 1)
+            {
+                delete_id(id_set, id);
             }
             else
             {
