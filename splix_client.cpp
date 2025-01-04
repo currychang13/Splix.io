@@ -19,7 +19,7 @@ pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for queue
 void update_idset_and_map(std::set<int> &id_set)
 {
     // receive map and update idset from server
-    char buffer[MAP_HEIGHT * MAP_WIDTH * 3];
+    char buffer[MAP_HEIGHT * MAP_WIDTH * 5] = "";
     int n;
     if ((n = read(udp.sockfd, buffer, sizeof(buffer))) < 0)
     {
@@ -28,8 +28,6 @@ void update_idset_and_map(std::set<int> &id_set)
     }
     buffer[n] = '\0';
     FILE *fp = fopen("map.txt", "r+");
-    fprintf(fp, "%s", buffer);
-    sleep(2);
     std::stringstream ss(buffer);
     std::string token;
     int i = 0;
@@ -48,8 +46,10 @@ void update_idset_and_map(std::set<int> &id_set)
         if (entry > 0)
             id_set.insert(entry);
         map[i / MAP_WIDTH][i % MAP_WIDTH] = entry;
+        fprintf(fp, "%d ",entry);
         i++;
     }
+    fclose(fp);
 }
 
 void delete_id(std::set<int> &id_set, int id)
@@ -121,6 +121,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     std::pair<int, int> position;
     udp.get_initial_data(cli_id, position);
     player.init(position, {0, 1}, cli_id, Mode::NORMAL, acc_time, 0, 0);
+    id_set.insert(cli_id);  
     update_idset_and_map(id_set); // receive map and update idset from server
 
     pthread_t server_thread;
@@ -160,7 +161,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
             unbox(id, head, cur_str);
             // if new player
-            if (id_set.find(id) != id_set.end())
+            if (id_set.count(id) == 0)
             {
                 game_win->create_initial_territory(head.first, head.second, id);
             }
@@ -172,7 +173,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             }
             else
             {
-                if (map[head.first][head.second] != 0) // someone die
+                if (map[head.first][head.second] > 0) // someone die
                 {
                     int target_id = map[head.first][head.second];
                     if (target_id == player.id) // you die

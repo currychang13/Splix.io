@@ -663,7 +663,6 @@ bool Splix_Window::is_enclosure(int y, int x, int id)
     std::vector<std::vector<bool>> visited(MAP_HEIGHT, std::vector<bool>(MAP_WIDTH, false));
     std::queue<std::pair<int, int>> q;
 
-    // Start from the current position
     q.push({y, x});
     visited[y][x] = true;
 
