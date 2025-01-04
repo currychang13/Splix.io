@@ -118,7 +118,7 @@ public:
     void addPlayerToGame(int roomId, int clientFd);
     std::vector<std::pair<int, int>> findInsidePoints(int roomId, int clientFd);
     void fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId, int clientFd);
-    void handlePlayerDeath(int roomId, int udpSocket, int clientFd);
+    void handlePlayerDeath(int playerId, int roomId, int udpSocket, int clientFd);
     pthread_mutex_t gameMutex = PTHREAD_MUTEX_INITIALIZER;
     Server *server;                      // Pointer back to Server
     std::map<int, GameState> gameStates; // roomId -> GameState
@@ -291,14 +291,14 @@ void *playerThreadFunction(void *args)
         if (activity < 0)
         {
             perror("select error");
-            Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
+            Playerargs->gameManager->handlePlayerDeath(playerId,  Playerargs->roomId, udpSocket, Playerargs->clientFd);
             return nullptr;
         }
         else if (activity == 0)
         {
             // Timeout occurred, close the socket
             std::cout << "No data received in 5 seconds. Closing UDP socket." << std::endl;
-            Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
+            Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
             return nullptr;
         }
 
@@ -308,13 +308,13 @@ void *playerThreadFunction(void *args)
             if (bytesRead < 0)
             {
                 perror("recvfrom failed");
-                Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
+                Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
                 return nullptr;
             }
             else if (bytesRead == 0)
             {
                 // Handle player disconnection
-                Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
+                Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
                 return nullptr;
             }
 
@@ -333,7 +333,7 @@ void *playerThreadFunction(void *args)
             // pthread_mutex_lock(&Playerargs->gameManager->gameMutex);
             if (gameState.map[y][x] == playerId || y <= 0 || y >= MAP_WIDTH - 1 || x <= 0 || x >= MAP_HEIGHT - 1)
             {
-                Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
+                Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
                 return nullptr;
             }
             else if (gameState.map[y][x] == -playerId)
@@ -355,7 +355,7 @@ void *playerThreadFunction(void *args)
             else if (gameState.map[y][x] > 0)
             {
                 int killedId = gameState.map[y][x];
-                Playerargs->gameManager->handlePlayerDeath(Playerargs->roomId, udpSocket, Playerargs->clientFd);
+                Playerargs->gameManager->handlePlayerDeath(killedId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
                 return nullptr;
             }
             else
@@ -398,7 +398,7 @@ void GameManager::broadcastMessageExceptYourself(int playerId, const std::string
     }
 }
 
-void GameManager::handlePlayerDeath(int roomId, int udpSocket, int clientFd)
+void GameManager::handlePlayerDeath(int playerId, int roomId, int udpSocket, int clientFd)
 {
 
     auto &gameState = gameStates[roomId];
@@ -409,9 +409,6 @@ void GameManager::handlePlayerDeath(int roomId, int udpSocket, int clientFd)
         pthread_mutex_unlock(&gameMutex);
         return;
     }
-
-    // Retrieve player information
-    int playerId = playerIt->second.playerId;
 
     // Iterate through the entire map to clear all cells associated with this player
     for (int y = 0; y < MAP_HEIGHT; ++y)
