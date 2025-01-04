@@ -27,6 +27,9 @@ void update_idset_and_map(std::set<int> &id_set)
         exit(1);
     }
     buffer[n] = '\0';
+    FILE *fp = fopen("map.txt", "r+");
+    fprintf(fp, "%s", buffer);
+    sleep(2);
     std::stringstream ss(buffer);
     std::string token;
     int i = 0;
@@ -114,8 +117,9 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
 
 #ifndef DEBUG
     udp.udp_connect();
-    int cli_id = udp.get_id_from_server();
-    std::pair<int, int> position = udp.get_position_from_server();
+    int cli_id;
+    std::pair<int, int> position;
+    udp.get_initial_data(cli_id, position);
     player.init(position, {0, 1}, cli_id, Mode::NORMAL, acc_time, 0, 0);
     update_idset_and_map(id_set); // receive map and update idset from server
 

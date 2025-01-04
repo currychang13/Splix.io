@@ -290,8 +290,7 @@ public:
     void udp_connect();
     void send_server_position(Player player);
     void send_leave_game();
-    int get_id_from_server();
-    std::pair<int, int> get_position_from_server();
+    void get_initial_data(int &cli_id, std::pair<int, int> &position);
 };
 
 class TcpContent

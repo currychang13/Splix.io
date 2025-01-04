@@ -942,23 +942,11 @@ void UdpContent::send_server_position(Player player)
     napms(1);
     send(sockfd, message, strlen(message), MSG_CONFIRM);
 }
-int UdpContent::get_id_from_server()
+void UdpContent::get_initial_data(int &id, std::pair<int, int> &position)
 {
-    char message[BUFFER_SIZE];
-    int n;
-    n = recv(sockfd, message, BUFFER_SIZE, 0);
-    message[n] = '\0';
-    return atoi(message);
-}
-std::pair<int, int> UdpContent::get_position_from_server()
-{
-    char message[BUFFER_SIZE];
-    int n;
-    n = recv(sockfd, message, BUFFER_SIZE, 0);
-    message[n] = '\0';
-    std::pair<int, int> position;
-    sscanf(message, "%d %d", &position.first, &position.second);
-    return position;
+    char message[BUFFER_SIZE] = "";
+    recv(sockfd, message, BUFFER_SIZE, 0);
+    sscanf(message, "%d %d %d", &id, &position.first, &position.second);
 }
 void UdpContent::send_leave_game()
 {
