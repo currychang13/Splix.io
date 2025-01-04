@@ -628,6 +628,7 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player
             }
             if (map_y == coordinate_y && map_x == coordinate_x || map_y == player.coordinate_y && map_x == player.coordinate_x)
             {
+                color_pair = (value % 10);
                 symbol = L"◯";
             }
             wattron(win, COLOR_PAIR(color_pair));

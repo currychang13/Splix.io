@@ -16,6 +16,10 @@ std::vector<std::string> member_info;
 std::queue<std::string> message_queue;
 pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for queue
 
+// kill one player, but he don't know he was killed
+// kill one player, but the map didn't clean
+// Can't see other player's trail
+
 void update_idset_and_map(std::set<int> &id_set)
 {
     // receive map and update idset from server
@@ -119,9 +123,8 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     std::pair<int, int> position;
     udp.get_initial_data(cli_id, position);
     player.init(position, {0, 1}, cli_id, Mode::NORMAL, acc_time, 0, 0);
-    id_set.insert(cli_id);
     update_idset_and_map(id_set); // receive map and update idset from server
-
+    id_set.insert(cli_id);
     pthread_t server_thread;
     if (pthread_create(&server_thread, NULL, listen_to_server, &udp.sockfd) != 0)
     {
@@ -158,7 +161,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             int id; // the subject
 
             unbox(id, head, cur_str);
-
             // if new player
             if (id_set.count(id) == 0)
             {
@@ -171,10 +173,13 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 delete_id(id_set, id);
             }
             // judge if circled
-            else if (game_win->is_enclosure(head.first, head.second, id))
+            else if (map[head.first][head.second] == -id)
             {
-                auto inside_points = game_win->find_inside_points(id);
-                game_win->fill_territory(inside_points, id);
+                if (game_win->is_enclosure(head.first, head.second, id))
+                {
+                    auto inside_points = game_win->find_inside_points(id);
+                    game_win->fill_territory(inside_points, id);
+                }
             }
             else
             {
@@ -200,7 +205,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
             (player.mode == Mode::FAST && ticker_fast.is_tick_due()) || (ticker_slow.is_tick_due() && player.mode == Mode::SLOW))
         {
-
             int ch = wgetch(game_win->win);
             std::pair<int, int> new_direction = player.direction;
             flushinp();
@@ -300,7 +304,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 game_win->exit_game(0); // die
                 return true;
             }
-
             // Handle territory and update map
             else if (map[player.coordinate_y][player.coordinate_x] == -player.id)
             {
@@ -320,7 +323,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 }
                 map[player.coordinate_y][player.coordinate_x] = player.id;
             }
-
             game_win->render_game(player.coordinate_y, player.coordinate_x, player);
             stat_win->update_status(player.coordinate_y, player.coordinate_x,
                                     (player.mode == Mode::FAST) ? "BURST" : (player.mode == Mode::NORMAL) ? "NORMAL"
