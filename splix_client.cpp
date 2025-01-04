@@ -27,7 +27,6 @@ void update_idset_and_map(std::set<int> &id_set)
         exit(1);
     }
     buffer[n] = '\0';
-    FILE *fp = fopen("map.txt", "r+");
     std::stringstream ss(buffer);
     std::string token;
     int i = 0;
@@ -46,10 +45,8 @@ void update_idset_and_map(std::set<int> &id_set)
         if (entry > 0)
             id_set.insert(entry);
         map[i / MAP_WIDTH][i % MAP_WIDTH] = entry;
-        fprintf(fp, "%d ",entry);
         i++;
     }
-    fclose(fp);
 }
 
 void delete_id(std::set<int> &id_set, int id)

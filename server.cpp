@@ -112,13 +112,14 @@ class GameManager
 {
 public:
     GameManager(Server *serverInstance);
-    pthread_mutex_t gameMutex = PTHREAD_MUTEX_INITIALIZER;
     void broadcastMessage(int playerId, const std::string &message, int udpSock, int roomId);
+    void broadcastMessageExceptYourself(int playerId, const std::string &message, int udpSock, int roomId);
     void initializeGameState(int roomId, int clientFd);
     void addPlayerToGame(int roomId, int clientFd);
     std::vector<std::pair<int, int>> findInsidePoints(int roomId, int clientFd);
     void fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId, int clientFd);
     void handlePlayerDeath(int roomId, int udpSocket, int clientFd);
+    pthread_mutex_t gameMutex = PTHREAD_MUTEX_INITIALIZER;
     Server *server;                      // Pointer back to Server
     std::map<int, GameState> gameStates; // roomId -> GameState
 private:
@@ -213,18 +214,28 @@ void *playerThreadFunction(void *args)
     //---------------------------------------------------------------------
 
     // 2.choose a random point on the map and broadcast to all player------------------------------
-    srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
-    const int MIN_DISTANCE_FROM_WALL = 20;
+    Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen);
+    pthread_mutex_lock(&Playerargs->gameManager->gameMutex);
 
+    // Insert the player
+    gameState.players.emplace(udpSocket, player);
+
+    pthread_mutex_unlock(&Playerargs->gameManager->gameMutex);
+
+    const int MIN_DISTANCE_FROM_WALL = 20;
     int start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
     int start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
-    Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen);
 
     while (gameState.map[start_y][start_x] != 0)
     {
         start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
         start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
     }
+    int playerId = player.playerId;
+    std::string IdPosition = std::to_string(playerId) + " " + std::to_string(start_y) + " " + std::to_string(start_x);
+    Playerargs->gameManager->broadcastMessage(playerId, IdPosition, udpSocket, Playerargs->roomId);
+    srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
+
     for (int dy = -2; dy <= 2; ++dy)
     {
         for (int dx = -2; dx <= 2; ++dx)
@@ -235,24 +246,10 @@ void *playerThreadFunction(void *args)
             // Check map boundaries
             if (new_x >= 0 && new_x < MAP_WIDTH && new_y >= 0 && new_y < MAP_HEIGHT)
             {
-                // Only set if the cell is empty
-                if (gameState.map[new_y][new_x] == 0)
-                {
-                    gameState.map[new_y][new_x] = -player.playerId;
-                }
+                gameState.map[new_y][new_x] = -player.playerId;
             }
         }
     }
-    pthread_mutex_lock(&Playerargs->gameManager->gameMutex);
-
-    // Insert the player
-    gameState.players.emplace(udpSocket, player);
-
-    pthread_mutex_unlock(&Playerargs->gameManager->gameMutex);
-
-    int playerId = player.playerId;
-    std::string IdPosition = std::to_string(playerId) + " " + std::to_string(start_y) + " " + std::to_string(start_x);
-    Playerargs->gameManager->broadcastMessage(playerId, IdPosition, udpSocket, Playerargs->roomId);
 
     //---------------------------------------------------------------------------
 
@@ -327,7 +324,7 @@ void *playerThreadFunction(void *args)
             std::cout << udpSocket << " " << buffer << "\n";
 
             // Handle the received message
-            Playerargs->gameManager->broadcastMessage(playerId, message, udpSocket, Playerargs->roomId);
+            Playerargs->gameManager->broadcastMessageExceptYourself(playerId, message, udpSocket, Playerargs->roomId);
             std::stringstream ss(message);
             int y, x, id;
             ss >> id >> y >> x;
@@ -382,10 +379,22 @@ void *playerThreadFunction(void *args)
 
 void GameManager::broadcastMessage(int playerId, const std::string &message, int udpSock, int roomId)
 {
+    for (const auto &[allFd, allPlayer] : gameStates[roomId].players)
+    {
+        sendto(allFd, message.c_str(), message.length(), 0, gameStates[roomId].players[allFd].addr, gameStates[roomId].players[allFd].len);
+        std::cout << "Sent to FD " << allFd << ": " << message << "\n";
+    }
+}
+
+void GameManager::broadcastMessageExceptYourself(int playerId, const std::string &message, int udpSock, int roomId)
+{
     for (const auto &[otherFd, otherPlayer] : gameStates[roomId].players)
     {
-        sendto(otherFd, message.c_str(), message.length(), 0, gameStates[roomId].players[otherFd].addr, gameStates[roomId].players[otherFd].len);
-        std::cout << "Sent to FD " << otherFd << ": " << message << "\n";
+        if (otherFd != udpSock)
+        {
+            sendto(otherFd, message.c_str(), message.length(), 0, gameStates[roomId].players[otherFd].addr, gameStates[roomId].players[otherFd].len);
+            std::cout << "Sent to FD " << otherFd << ": " << message << "\n";
+        }
     }
 }
 
@@ -500,7 +509,7 @@ std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId, int p
     {
         for (int x = 1; x < MAP_WIDTH - 1; x++)
         {
-            if (!visited[y][x] && (gameStates[roomId].map[y][x] == 0 || gameStates[roomId].map[y][x] == playerId))
+            if (!visited[y][x] && gameStates[roomId].map[y][x] != -playerId)
             {
                 inside_points.push_back({y, x});
             }
