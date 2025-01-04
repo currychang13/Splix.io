@@ -496,7 +496,7 @@ std::vector<std::pair<int, int>> GameManager::findInsidePoints(int roomId, int p
     {
         for (int x = 1; x < MAP_WIDTH - 1; x++)
         {
-            if (!visited[y][x] && (gameStates[roomId].map[y][x] == 0 || gameStates[roomId].map[y][x] == playerId))
+            if (!visited[y][x] && gameStates[roomId].map[y][x] != -playerId)
             {
                 inside_points.push_back({y, x});
             }
