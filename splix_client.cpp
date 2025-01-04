@@ -27,9 +27,6 @@ void update_idset_and_map(std::set<int> &id_set)
         exit(1);
     }
     buffer[n] = '\0';
-    FILE *fp = fopen("map.txt", "r+");
-    fprintf(fp, "%s", buffer);
-    sleep(2);
     std::stringstream ss(buffer);
     std::string token;
     int i = 0;
