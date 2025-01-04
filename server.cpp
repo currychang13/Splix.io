@@ -213,18 +213,28 @@ void *playerThreadFunction(void *args)
     //---------------------------------------------------------------------
 
     // 2.choose a random point on the map and broadcast to all player------------------------------
-    srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
-    const int MIN_DISTANCE_FROM_WALL = 20;
+    Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen);
+    pthread_mutex_lock(&Playerargs->gameManager->gameMutex);
 
+    // Insert the player
+    gameState.players.emplace(udpSocket, player);
+
+    pthread_mutex_unlock(&Playerargs->gameManager->gameMutex);
+
+    const int MIN_DISTANCE_FROM_WALL = 20;
     int start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
     int start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
-    Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen);
 
     while (gameState.map[start_y][start_x] != 0)
     {
         start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
         start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
     }
+    int playerId = player.playerId;
+    std::string IdPosition = std::to_string(playerId) + " " + std::to_string(start_y) + " " + std::to_string(start_x);
+    Playerargs->gameManager->broadcastMessage(playerId, IdPosition, udpSocket, Playerargs->roomId);
+    srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
+
     for (int dy = -2; dy <= 2; ++dy)
     {
         for (int dx = -2; dx <= 2; ++dx)
@@ -235,24 +245,10 @@ void *playerThreadFunction(void *args)
             // Check map boundaries
             if (new_x >= 0 && new_x < MAP_WIDTH && new_y >= 0 && new_y < MAP_HEIGHT)
             {
-                // Only set if the cell is empty
-                if (gameState.map[new_y][new_x] == 0)
-                {
-                    gameState.map[new_y][new_x] = -player.playerId;
-                }
+                gameState.map[new_y][new_x] = -player.playerId;
             }
         }
     }
-    pthread_mutex_lock(&Playerargs->gameManager->gameMutex);
-
-    // Insert the player
-    gameState.players.emplace(udpSocket, player);
-
-    pthread_mutex_unlock(&Playerargs->gameManager->gameMutex);
-
-    int playerId = player.playerId;
-    std::string IdPosition = std::to_string(playerId) + " " + std::to_string(start_y) + " " + std::to_string(start_x);
-    Playerargs->gameManager->broadcastMessage(playerId, IdPosition, udpSocket, Playerargs->roomId);
 
     //---------------------------------------------------------------------------
 
