@@ -53,7 +53,7 @@ struct ClientInfo
     std::string username;
     ClientState state;
     int roomId;
-
+    
     ClientInfo() : Tcpfd(-1), roomId(-1) {}
 };
 
@@ -81,6 +81,8 @@ struct GameState
     int roomId;
     int map[MAP_HEIGHT][MAP_WIDTH];
     std::map<int, Player> players; // Keyed by client fd
+    std::map<int, int> IdFd;
+    std::map<int, int> udpTcp;
 };
 
 int Player::nextPlayerId(1);
@@ -119,6 +121,7 @@ public:
     std::vector<std::pair<int, int>> findInsidePoints(int roomId, int clientFd);
     void fillTerritory(const std::vector<std::pair<int, int>> &inside_points, int roomId, int clientFd);
     void handlePlayerDeath(int playerId, int roomId, int udpSocket, int clientFd);
+
     pthread_mutex_t gameMutex = PTHREAD_MUTEX_INITIALIZER;
     Server *server;                      // Pointer back to Server
     std::map<int, GameState> gameStates; // roomId -> GameState
@@ -215,6 +218,9 @@ void *playerThreadFunction(void *args)
 
     // 2.choose a random point on the map and broadcast to all player------------------------------
     Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen);
+    int playerId = player.playerId;
+    gameState.IdFd[playerId] = udpSocket;
+    gameState.udpTcp[udpSocket] = Playerargs->clientFd;
     pthread_mutex_lock(&Playerargs->gameManager->gameMutex);
 
     // Insert the player
@@ -231,7 +237,6 @@ void *playerThreadFunction(void *args)
         start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
         start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
     }
-    int playerId = player.playerId;
     std::string IdPosition = std::to_string(playerId) + " " + std::to_string(start_y) + " " + std::to_string(start_x);
     Playerargs->gameManager->broadcastMessage(playerId, IdPosition, udpSocket, Playerargs->roomId);
     srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
@@ -347,7 +352,9 @@ void *playerThreadFunction(void *args)
             {
                 gameState.map[y][x] = playerId;
                 int killedId = gameState.map[y][x];
-                Playerargs->gameManager->handlePlayerDeath(killedId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
+                int killedUdp = gameState.IdFd[playerId];
+                int killedTcp = gameState.udpTcp[killedUdp];
+                Playerargs->gameManager->handlePlayerDeath(killedId, Playerargs->roomId, killedUdp, killedTcp);
                 return nullptr;
             }
             else
