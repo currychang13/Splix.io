@@ -1,4 +1,4 @@
-PROGS = splix_client splix_client.o 
+PROGS = splix_client splix_client.o server
 .PHONY: all clean
 
 all:$(PROGS)
@@ -11,7 +11,8 @@ splix_util.o: splix_util.cpp splix_header.h
 
 splix_client.o: splix_client.cpp splix_header.h 
 	g++ $(CFLAGS) -I. -c $< -o $@ 
+
 server: server.cpp
-	g++ -o $@ $^ 
+	g++ $< -o $@
 clean:
 	rm -f $(PROGS) $(CLEANFILES)
