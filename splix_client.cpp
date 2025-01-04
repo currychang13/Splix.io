@@ -101,6 +101,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
     nodelay(game_win->win, TRUE);
     keypad(game_win->win, TRUE);
     setlocale(LC_ALL, "");
+    curs_set(0);
     message_queue = std::queue<std::string>();
     std::set<int> id_set;
 

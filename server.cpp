@@ -291,7 +291,7 @@ void *playerThreadFunction(void *args)
         if (activity < 0)
         {
             perror("select error");
-            Playerargs->gameManager->handlePlayerDeath(playerId,  Playerargs->roomId, udpSocket, Playerargs->clientFd);
+            Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
             return nullptr;
         }
         else if (activity == 0)
