@@ -157,21 +157,23 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             int id; // the subject
 
             unbox(id, head, cur_str);
+
             // if new player
             if (id_set.count(id) == 0)
             {
                 game_win->create_initial_territory(head.first, head.second, id);
-            }
-            // judge if circled
-            if (game_win->is_enclosure(head.first, head.second, id))
-            {
-                auto inside_points = game_win->find_inside_points(id);
-                game_win->fill_territory(inside_points, id);
+                id_set.insert(id);
             }
             // he touch boundary
             if (head.first < 1 || head.first >= MAP_HEIGHT - 1 || head.second < 1 || head.second >= MAP_WIDTH - 1 || map[head.first][head.second] == id)
             {
                 delete_id(id_set, id);
+            }
+            // judge if circled
+            else if (game_win->is_enclosure(head.first, head.second, id))
+            {
+                auto inside_points = game_win->find_inside_points(id);
+                game_win->fill_territory(inside_points, id);
             }
             else
             {
@@ -206,7 +208,6 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                 switch (ch)
                 {
                 case 'q':
-                    // wattroff(game_win->win, COLOR_PAIR(player.id) | A_BOLD);
                     player.coordinate_x = -1;
                     player.coordinate_y = -1;
                     udp.send_server_position(player);
@@ -300,7 +301,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             }
 
             // Handle territory and update map
-            if (map[player.coordinate_y][player.coordinate_x] == -player.id)
+            else if (map[player.coordinate_y][player.coordinate_x] == -player.id)
             {
                 if (game_win->is_enclosure(player.coordinate_y, player.coordinate_x, player.id))
                 {
@@ -308,15 +309,16 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
                     game_win->fill_territory(inside_points, player.id);
                 }
             }
-
             // player kill
-            if (map[player.coordinate_y][player.coordinate_x] > 0)
-            {
-                int target_id = map[player.coordinate_y][player.coordinate_x];
-                delete_id(id_set, target_id);
-            }
             else
+            {
+                if (map[player.coordinate_y][player.coordinate_x] > 0)
+                {
+                    int target_id = map[player.coordinate_y][player.coordinate_x];
+                    delete_id(id_set, target_id);
+                }
                 map[player.coordinate_y][player.coordinate_x] = player.id;
+            }
 
             game_win->render_game(player.coordinate_y, player.coordinate_x, player);
             stat_win->update_status(player.coordinate_y, player.coordinate_x,
@@ -551,7 +553,7 @@ int main()
             // show game over
             curs_set(0);
             gameover_win.render_gameover();
-            sleep(3);
+            sleep(1);
             werase(gameover_win.win);
             wrefresh(gameover_win.win);
             status = GameStatus::INSIDE_ROOM;
