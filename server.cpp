@@ -282,7 +282,7 @@ void *playerThreadFunction(void *args)
 
         // Set up the timeout
         struct timeval timeout;
-        timeout.tv_sec = 5; // 5 seconds
+        timeout.tv_sec = 2; // 2 seconds
         timeout.tv_usec = 0;
 
         // Wait for data on the socket with a 5-second timeout
