@@ -53,7 +53,7 @@ struct ClientInfo
     std::string username;
     ClientState state;
     int roomId;
-    
+
     ClientInfo() : Tcpfd(-1), roomId(-1) {}
 };
 
@@ -352,8 +352,10 @@ void *playerThreadFunction(void *args)
             {
                 gameState.map[y][x] = playerId;
                 int killedId = gameState.map[y][x];
-                int killedUdp = gameState.IdFd[playerId];
+                int killedUdp = gameState.IdFd[killedId];
                 int killedTcp = gameState.udpTcp[killedUdp];
+                gameState.IdFd.erase(killedId);
+                gameState.udpTcp.erase(killedUdp);
                 Playerargs->gameManager->handlePlayerDeath(killedId, Playerargs->roomId, killedUdp, killedTcp);
                 return nullptr;
             }
