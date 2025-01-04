@@ -17,8 +17,8 @@
 #define MAXLINE 4096
 #define SERV_PORT 12345
 #define LISTENQ 10
-#define MAP_WIDTH 600
-#define MAP_HEIGHT 600
+#define MAP_WIDTH 100
+#define MAP_HEIGHT 100
 #define SA struct sockaddr
 
 // // Check if the player dies from going out of bounds

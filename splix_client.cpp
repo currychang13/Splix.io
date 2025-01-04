@@ -19,7 +19,7 @@ pthread_mutex_t queue_mutex = PTHREAD_MUTEX_INITIALIZER; // Mutex for queue
 void update_idset_and_map(std::set<int> &id_set)
 {
     // receive map and update idset from server
-    char buffer[MAP_HEIGHT * MAP_WIDTH];
+    char buffer[MAP_HEIGHT * MAP_WIDTH * 3];
     int n;
     if ((n = read(udp.sockfd, buffer, sizeof(buffer))) < 0)
     {
@@ -32,19 +32,19 @@ void update_idset_and_map(std::set<int> &id_set)
     int i = 0;
     while (ss >> token)
     {
-        int id;
+        int entry;
         if (token[0] == '-')
         {
             token = token.substr(1);
-            id = -std::stoi(token);
+            entry = -std::stoi(token);
         }
         else
         {
-            id = std::stoi(token);
+            entry = std::stoi(token);
         }
-        if (id != 0)
-            id_set.insert(id);
-        map[i / MAP_WIDTH][i % MAP_WIDTH] = id;
+        if (entry > 0)
+            id_set.insert(entry);
+        map[i / MAP_WIDTH][i % MAP_WIDTH] = entry;
         i++;
     }
 }
@@ -68,7 +68,6 @@ void unbox(int &id, std::pair<int, int> &head, std::string str)
     std::string token;
     ss >> token;
     id = std::stoi(token);
-    // }
     ss >> token;
     head.first = std::stoi(token);
     ss >> token;
@@ -368,7 +367,7 @@ int main()
     Select_Room_Window select_room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
 
     Create_Room_Window create_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
-    CR_Input_Window cr_input_win(HEIGHT_INIT_WIN / 13, WIDTH_INIT_WIN / 3, (HEIGHT_INIT_WIN - HEIGHT_INIT_WIN / 12) / 3, (COLS - WIDTH_INIT_WIN / 3) / 2);
+    CR_Input_Window cr_input_win(HEIGHT_INIT_WIN / 13, WIDTH_INIT_WIN / 3, (HEIGHT_INIT_WIN - HEIGHT_INIT_WIN / 12) / 2.5, (COLS - WIDTH_INIT_WIN / 3) / 2);
 
     Room_Window room_win(HEIGHT_INIT_WIN, WIDTH_INIT_WIN, (LINES - HEIGHT_INIT_WIN) / 2, (COLS - WIDTH_INIT_WIN) / 2);
 
