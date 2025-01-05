@@ -288,7 +288,7 @@ void *playerThreadFunction(void *args)
 
         // Set up the timeout
         struct timeval timeout;
-        timeout.tv_sec = 0.5; // 0.5 seconds
+        timeout.tv_sec = 1; // 0.5 seconds
         timeout.tv_usec = 0;
 
         // Wait for data on the socket with a 5-second timeout
@@ -303,10 +303,11 @@ void *playerThreadFunction(void *args)
         else if (activity == 0)
         {
             // Timeout occurred, close the socket
-            std::cout << "No data received in 0.5 seconds. Closing UDP socket." << std::endl;
+            std::cout << "No data received in 1 seconds. Closing UDP socket." << std::endl;
             std::string heDied = std::to_string(playerId) + " -1 -1";
             Playerargs->gameManager->broadcastMessageExceptYourself(playerId, heDied, udpSocket, Playerargs->roomId);
             Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
+            return nullptr;
         }
 
         if (FD_ISSET(udpSocket, &readfds))
