@@ -17,8 +17,8 @@
 #define MAXLINE 4096
 #define SERV_PORT 12345
 #define LISTENQ 10
-#define MAP_WIDTH 50
-#define MAP_HEIGHT 50
+#define MAP_WIDTH 100
+#define MAP_HEIGHT 100
 #define SA struct sockaddr
 
 class GameManager;
@@ -71,6 +71,7 @@ struct Player
     struct sockaddr *addr;
     socklen_t len;
     int playerId;
+    int TcpFd;
     static int nextPlayerId; // Newly added field for tracking next player ID
     Player() : udpSocket(-1) {};
     Player(int socket_fd, struct sockaddr *addr, socklen_t len) : udpSocket(socket_fd), addr(addr), len(len), playerId(nextPlayerId++) {}
@@ -287,7 +288,7 @@ void *playerThreadFunction(void *args)
 
         // Set up the timeout
         struct timeval timeout;
-        timeout.tv_sec = 1; // 1 seconds
+        timeout.tv_sec = 0.5; // 0.5 seconds
         timeout.tv_usec = 0;
 
         // Wait for data on the socket with a 5-second timeout
@@ -296,17 +297,16 @@ void *playerThreadFunction(void *args)
         if (activity < 0)
         {
             perror("select error");
-            Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
+            //Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
             return nullptr;
         }
         else if (activity == 0)
         {
             // Timeout occurred, close the socket
-            std::cout << "No data received in 5 seconds. Closing UDP socket." << std::endl;
+            std::cout << "No data received in 0.5 seconds. Closing UDP socket." << std::endl;
             std::string heDied = std::to_string(playerId) + " -1 -1";
             Playerargs->gameManager->broadcastMessageExceptYourself(playerId, heDied, udpSocket, Playerargs->roomId);
             Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
-            return nullptr;
         }
 
         if (FD_ISSET(udpSocket, &readfds))
@@ -350,14 +350,13 @@ void *playerThreadFunction(void *args)
             }
             else if (gameState.map[y][x] > 0)
             {
-                gameState.map[y][x] = playerId;
                 int killedId = gameState.map[y][x];
                 int killedUdp = gameState.IdFd[killedId];
                 int killedTcp = gameState.udpTcp[killedUdp];
                 gameState.IdFd.erase(killedId);
                 gameState.udpTcp.erase(killedUdp);
                 Playerargs->gameManager->handlePlayerDeath(killedId, Playerargs->roomId, killedUdp, killedTcp);
-                return nullptr;
+                
             }
             else
             {
