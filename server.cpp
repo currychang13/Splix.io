@@ -71,6 +71,7 @@ struct Player
     struct sockaddr *addr;
     socklen_t len;
     int playerId;
+    int  userName;
     int TcpFd;
     static int nextPlayerId; // Newly added field for tracking next player ID
     Player() : udpSocket(-1) {};
@@ -82,8 +83,7 @@ struct GameState
     int roomId;
     int map[MAP_HEIGHT][MAP_WIDTH];
     std::map<int, Player> players; // Keyed by client fd
-    std::map<int, int> IdFd;
-    std::map<int, int> udpTcp;
+    std::map<int, int> IdUdp;
 };
 
 int Player::nextPlayerId(1);
@@ -220,8 +220,8 @@ void *playerThreadFunction(void *args)
     // 2.choose a random point on the map and broadcast to all player------------------------------
     Player player(udpSocket, (struct sockaddr *)&cliaddr, clilen);
     int playerId = player.playerId;
-    gameState.IdFd[playerId] = udpSocket;
-    gameState.udpTcp[udpSocket] = Playerargs->clientFd;
+    gameState.IdUdp[playerId] = udpSocket;
+    player.TcpFd = Playerargs->clientFd;
     pthread_mutex_lock(&Playerargs->gameManager->gameMutex);
 
     // Insert the player
@@ -238,8 +238,15 @@ void *playerThreadFunction(void *args)
         start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
         start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
     }
-    std::string IdPosition = std::to_string(playerId) + " " + std::to_string(start_y) + " " + std::to_string(start_x);
-    Playerargs->gameManager->broadcastMessage(playerId, IdPosition, udpSocket, Playerargs->roomId);
+    std::string bigPresent = "";
+    for (const auto &[username , allPlayer] : Playerargs->gameManager->gameStates[Playerargs->roomId].players)
+    {
+        bigPresent += allPlayer.userName + allPlayer.playerId;
+    }
+    sendto(udpSocket, bigPresent.c_str(), bigPresent.length(), 0, (struct sockaddr *)&cliaddr, clilen);
+    std::string userName = Playerargs->gameManager->server->clients[Playerargs->clientFd].username;
+    std::string IdUsernamePosition = std::to_string(playerId) + userName + " " + std::to_string(start_y) + " " + std::to_string(start_x);
+    Playerargs->gameManager->broadcastMessage(playerId, IdUsernamePosition, udpSocket, Playerargs->roomId);
     srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
 
     for (int dy = -2; dy <= 2; ++dy)
@@ -352,12 +359,10 @@ void *playerThreadFunction(void *args)
             else if (gameState.map[y][x] > 0)
             {
                 int killedId = gameState.map[y][x];
-                int killedUdp = gameState.IdFd[killedId];
-                int killedTcp = gameState.udpTcp[killedUdp];
-                gameState.IdFd.erase(killedId);
-                gameState.udpTcp.erase(killedUdp);
+                int killedUdp = gameState.IdUdp[killedId];
+                int killedTcp = gameState.players[killedUdp].TcpFd;
+                gameState.IdUdp.erase(killedId);
                 Playerargs->gameManager->handlePlayerDeath(killedId, Playerargs->roomId, killedUdp, killedTcp);
-                
             }
             else
             {
