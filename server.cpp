@@ -243,9 +243,10 @@ void *playerThreadFunction(void *args)
     {
         bigPresent += allPlayer.userName + allPlayer.playerId;
     }
+    std::cout << bigPresent << "\n";
     sendto(udpSocket, bigPresent.c_str(), bigPresent.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::string userName = Playerargs->gameManager->server->clients[Playerargs->clientFd].username;
-    std::string IdUsernamePosition = std::to_string(playerId) + userName + " " + std::to_string(start_y) + " " + std::to_string(start_x);
+    std::string IdUsernamePosition = std::to_string(playerId) + " " + userName + " " + std::to_string(start_y) + " " + std::to_string(start_x);
     Playerargs->gameManager->broadcastMessage(playerId, IdUsernamePosition, udpSocket, Playerargs->roomId);
     srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
 
