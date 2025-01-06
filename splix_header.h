@@ -16,11 +16,12 @@
 #include <fstream>
 #include <map>
 #include <set>
+#include <algorithm>
 
 #define MAP_HEIGHT 100
 #define MAP_WIDTH 100
 
-#define SERVER_IP "127.0.0.1" //"140.113.66.205"
+#define SERVER_IP "127.0.0.1"
 
 // size of windows
 #define HEIGHT_INIT_WIN 50
@@ -209,11 +210,21 @@ public:
 class Status_Window : public Window
 {
 public:
-    void update_status(int coordinate_y, int coordinate_x, const char *mode, int id);
+    void display_player_status(const char *mode, Player player);
     void update_timer(int remain_time, int cooldown);
     Status_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
 };
 
+class Ranking_Window : public Window
+{
+public:
+    Ranking_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
+    void update_ranking(std::vector<Player> players);
+};
+
+class Map_Window : public Window
+{
+};
 class Splix_Window : public Window
 {
 public:
@@ -225,7 +236,7 @@ public:
     void exit_game(int flag);
     bool is_enclosure(int coordinate_y, int coordinate_x, int id);
     std::vector<std::pair<int, int>> find_inside_points(int id);
-    void fill_territory(const std::vector<std::pair<int, int>> &inside_points, int id);
+    void fill_player_territory(const std::vector<std::pair<int, int>> &inside_points, Player &player);
     std::vector<std::pair<int, int>> Heads;
 };
 
@@ -291,6 +302,7 @@ public:
     void send_server_position(Player player);
     void send_leave_game();
     void get_initial_data(int &cli_id, std::pair<int, int> &position);
+    void get_other_users_info(std::vector<Player> &players);
 };
 
 class TcpContent

@@ -554,7 +554,16 @@ void Input_Window::get_user_input()
                 }
             }
         }
-        else if (i < name_length && isprint(ch))
+        else if (ch == ' ' && i < id_length)
+        {
+            wattron(win, COLOR_PAIR(18) | A_BOLD);
+            mvwprintw(win, 1, 1, "Can't enter space");
+            wattroff(win, COLOR_PAIR(18) | A_BOLD);
+            wrefresh(win);
+            warning = 1;
+            continue;
+        }
+        else if (i < name_length && ch != ' ')
         {
             mvwprintw(win, 1, 1, "                         ");
             i++; // Increase string length
@@ -592,7 +601,6 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player
                         player.coordinate_y >= MAP_HEIGHT - half_rows,
                         player.coordinate_x <= half_cols,
                         player.coordinate_x >= MAP_WIDTH - half_cols);
-
     setlocale(LC_ALL, "");
 
     int visible_start_y = std::max(0, start_y);
@@ -784,14 +792,15 @@ std::vector<std::pair<int, int>> Splix_Window::find_inside_points(int id)
     }
     return inside_points;
 }
-void Splix_Window::fill_territory(const std::vector<std::pair<int, int>> &inside_points, int id)
+
+void Splix_Window::fill_player_territory(const std::vector<std::pair<int, int>> &inside_points, Player &player)
 {
     for (const auto &[y, x] : inside_points)
     {
-        map[y][x] = -id; // Mark as filled territory
+        map[y][x] = -player.id;
+        player.score++;
     }
 }
-
 void Splix_Window::exit_game(int flag)
 {
     // animation
@@ -827,27 +836,14 @@ void Splix_Window::exit_game(int flag)
 }
 
 // Status_Window functions
-void Status_Window::update_status(int coordinate_y, int coordinate_x, const char *mode, int id)
+void Status_Window::display_player_status(const char *mode, Player player)
 {
     // Update the status window
     wattron(win, A_BOLD);
     mvwprintw(win, 1, 1, "Status");
-
-    // get status from server
-    int score = 0;
-    for (int i = 0; i < MAP_HEIGHT; i++)
-    {
-        for (int j = 0; j < MAP_WIDTH; j++)
-        {
-            if (map[i][j] == -id)
-            {
-                score++;
-            }
-        }
-    }
-    mvwprintw(win, 2, 1, "Score: %d", score);
+    mvwprintw(win, 2, 1, "Score: %d", player.score);
     mvwprintw(win, 3, 1, "                     ");
-    mvwprintw(win, 3, 1, "Position: (%d, %d)", coordinate_y, coordinate_x);
+    mvwprintw(win, 3, 1, "Position: (%d, %d)", player.coordinate_y, player.coordinate_x);
     mvwprintw(win, 4, 1, "                   ");
     mvwprintw(win, 4, 1, "Mode: %s", mode);
     wattroff(win, A_BOLD);
@@ -890,6 +886,24 @@ void Status_Window::update_timer(int acceleration_timer, int cooldown_timer)
 
     mvwprintw(win, 7, width - 2, "]");
     wattroff(win, COLOR_PAIR(3) | A_BOLD);
+}
+
+// Rank_Window functions
+void Ranking_Window::update_ranking(std::vector<Player> players)
+{
+    wattron(win, A_BOLD);
+    mvwprintw(win, 1, (width - 4) / 2, "Rank");
+    wattroff(win, A_BOLD);
+    // Sort players by score
+    std::sort(players.begin(), players.end(), [](const Player &a, const Player &b)
+              { return a.score > b.score; });
+    int row = 3;
+    for (int i = 0; i < players.size(); i++)
+    {
+        mvwprintw(win, row, 1, "#%d  %s  %d", i + 1, players[i].name, players[i].score);
+        row++;
+    }
+    wrefresh(win);
 }
 
 // Gameover_Window functions
@@ -955,6 +969,28 @@ void UdpContent::send_leave_game()
 {
     char message[BUFFER_SIZE] = "leave";
     send(sockfd, message, strlen(message), MSG_CONFIRM);
+}
+void UdpContent::get_other_users_info(std::vector<Player> &players)
+{
+    // receive other users' info from server
+    char buffer[100] = "";
+    int n;
+    if ((n = read(sockfd, buffer, sizeof(buffer))) < 0)
+    {
+        perror("read");
+        exit(1);
+    }
+    buffer[n] = '\0';
+    std::stringstream ss(buffer);
+    std::string tokenid, tokenname;
+    while (ss >> tokenid >> tokenname)
+    {
+        int id;
+        std::string name;
+        id = std::stoi(tokenid);
+        name = tokenname;
+        strcpy(players[id - 1].name, name.c_str());
+    }
 }
 
 // tcp functions
