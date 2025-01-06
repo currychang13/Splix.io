@@ -299,7 +299,7 @@ bool game_loop(Splix_Window *game_win, Status_Window *stat_win)
             udp.send_server_position(player);
 #endif
             // Check if the player dies from going out of bounds
-            if (player.coordinate_y < 1 || player.coordinate_y >= MAP_HEIGHT - 1 || player.coordinate_x < 1 || player.coordinate_x >= MAP_WIDTH - 1 || map[player.coordinate_y][player.coordinate_x] == player.id)
+            if (player.coordinate_y < 0 || player.coordinate_y >= MAP_HEIGHT - 1 || player.coordinate_x < 0 || player.coordinate_x >= MAP_WIDTH - 1 || map[player.coordinate_y][player.coordinate_x] == player.id)
             {
                 game_win->exit_game(0); // die
                 return true;
