@@ -250,6 +250,18 @@ void *playerThreadFunction(void *args)
     Playerargs->gameManager->broadcastMessage(playerId, IdUsernamePosition, udpSocket, Playerargs->roomId);
     srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
 
+    std::string initMap = "";
+    for (int i = 0; i < MAP_WIDTH; ++i)
+    {
+        for (int j = 0; j < MAP_HEIGHT; ++j)
+        {
+            initMap += std::to_string(gameState.map[i][j]) + " ";
+        }
+        initMap += "\n";
+    }
+    sendto(udpSocket, initMap.c_str(), initMap.length(), 0, (struct sockaddr *)&cliaddr, clilen);
+    std::cout << initMap << "\n";
+
     for (int dy = -2; dy <= 2; ++dy)
     {
         for (int dx = -2; dx <= 2; ++dx)
@@ -267,21 +279,8 @@ void *playerThreadFunction(void *args)
 
     //---------------------------------------------------------------------------
 
-    // 3. initial map--------------------------------------------------------
-    std::string initMap = "";
-    for (int i = 0; i < MAP_WIDTH; ++i)
-    {
-        for (int j = 0; j < MAP_HEIGHT; ++j)
-        {
-            initMap += std::to_string(gameState.map[i][j]) + " ";
-        }
-        initMap += "\n";
-    }
-    std::cout << initMap << "\n";
-    sendto(udpSocket, initMap.c_str(), initMap.length(), 0, (struct sockaddr *)&cliaddr, clilen);
-    //----------------------------------------------------------------------
-    std::cout << "PlayerId : " << playerId << "\n";
-    std::cout << start_y << " " << start_x << "\n";
+    // 3. initial map------------------------------------------------------------
+    //---------------------------------------------------------------------------
 
     char buffer[MAXLINE];
     while (true)
@@ -368,16 +367,16 @@ void *playerThreadFunction(void *args)
             else
             {
                 gameState.map[y][x] = playerId;
-                std::string initMap = "";
-                for (int i = 0; i < MAP_WIDTH; ++i)
-                {
-                    for (int j = 0; j < MAP_HEIGHT; ++j)
-                    {
-                        initMap += std::to_string(gameState.map[i][j]) + " ";
-                    }
-                    initMap += "\n";
-                }
-                std::cout << initMap << "\n";
+                // std::string initMap = "";
+                // for (int i = 0; i < MAP_WIDTH; ++i)
+                // {
+                //     for (int j = 0; j < MAP_HEIGHT; ++j)
+                //     {
+                //         initMap += std::to_string(gameState.map[i][j]) + " ";
+                //     }
+                //     initMap += "\n";
+                // }
+                // std::cout << initMap << "\n";
             }
             // pthread_mutex_unlock(&Playerargs->gameManager->gameMutex);
         }

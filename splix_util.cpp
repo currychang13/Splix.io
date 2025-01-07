@@ -900,6 +900,8 @@ void Ranking_Window::update_ranking(std::vector<Player> players)
     int row = 3;
     for (int i = 0; i < players.size(); i++)
     {
+        if (players[i].score == 0)
+            break;
         mvwprintw(win, row, 1, "#%d  %s  %d", i + 1, players[i].name, players[i].score);
         row++;
     }
@@ -962,8 +964,9 @@ void UdpContent::send_server_position(Player player)
 void UdpContent::get_initial_data(int &id, std::pair<int, int> &position)
 {
     char message[BUFFER_SIZE] = "";
+    char fuck[BUFFER_SIZE] = "";
     recv(sockfd, message, BUFFER_SIZE, 0);
-    sscanf(message, "%d %d %d", &id, &position.first, &position.second);
+    sscanf(message, "%d %15s %d %d", &id, fuck, &position.first, &position.second);
 }
 void UdpContent::send_leave_game()
 {

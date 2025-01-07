@@ -73,11 +73,11 @@ void unbox(int &id, std::pair<int, int> &head, char *username, std::string str)
     std::string token;
     ss >> token;
     id = std::stoi(token);
+    ss >> username;
     ss >> token;
     head.first = std::stoi(token);
     ss >> token;
     head.second = std::stoi(token);
-    ss >> username;
 }
 
 void *listen_to_server(void *arg)
