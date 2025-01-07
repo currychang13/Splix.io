@@ -111,6 +111,10 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
 
     message_queue = std::queue<std::string>();
     std::vector<Player> players(10);
+    for (int i = 0; i < 10; i++)
+    {
+        players[i].id = i + 1;
+    }
     std::set<int> id_set;
 
     for (int i = 0; i < MAP_HEIGHT; i++)
@@ -185,7 +189,7 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
                 strcpy(players[id - 1].name, username);
             }
             // he touch boundary
-            if (head.first < 1 || head.first > MAP_HEIGHT - 2 || head.second < 1 || head.second > MAP_WIDTH - 2 || map[head.first][head.second] == id)
+            if (head.first < 0 || head.first > MAP_HEIGHT - 2 || head.second < 0 || head.second > MAP_WIDTH - 2 || map[head.first][head.second] == id)
             {
                 delete_id(id_set, id);
                 players[id - 1].score = 0;
@@ -197,7 +201,7 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
                 if (splix_win->is_enclosure(head.first, head.second, id))
                 {
                     auto inside_points = splix_win->find_inside_points(id);
-                    splix_win->fill_player_territory(inside_points, players[id - 1]);
+                    splix_win->fill_players_territory(inside_points, players, id);
                 }
             }
             else

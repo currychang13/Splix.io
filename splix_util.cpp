@@ -634,7 +634,7 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player
                 color_pair = (value % 10);
                 symbol = L"▪";
             }
-            if (map_y == coordinate_y && map_x == coordinate_x || map_y == player.coordinate_y && map_x == player.coordinate_x)
+            if ((map_y == coordinate_y && map_x == coordinate_x) || (map_y == player.coordinate_y && map_x == player.coordinate_x))
             {
                 if (value < 0) // walk on territory
                     color_pair = (-1 * value) % 10;
@@ -799,6 +799,14 @@ void Splix_Window::fill_player_territory(const std::vector<std::pair<int, int>> 
     {
         map[y][x] = -player.id;
         player.score++;
+    }
+}
+void Splix_Window::fill_players_territory(const std::vector<std::pair<int, int>> &inside_points, std::vector<Player> &players, int id)
+{
+    for (const auto &[y, x] : inside_points)
+    {
+        map[y][x] = -id;
+        players[id - 1].score++;
     }
 }
 void Splix_Window::exit_game(int flag)

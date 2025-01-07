@@ -237,6 +237,7 @@ public:
     bool is_enclosure(int coordinate_y, int coordinate_x, int id);
     std::vector<std::pair<int, int>> find_inside_points(int id);
     void fill_player_territory(const std::vector<std::pair<int, int>> &inside_points, Player &player);
+    void fill_players_territory(const std::vector<std::pair<int, int>> &inside_points, std::vector<Player> &players, int id);
     std::vector<std::pair<int, int>> Heads;
 };
 
