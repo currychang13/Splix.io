@@ -605,8 +605,8 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player
 
     int visible_start_y = std::max(0, start_y);
     int visible_start_x = std::max(0, start_x);
-    int visible_end_y = std::min(MAP_HEIGHT - 1, start_y + height - 2);
-    int visible_end_x = std::min(MAP_WIDTH - 1, start_x + width - 2);
+    int visible_end_y = std::min(MAP_HEIGHT , start_y + height - 2);
+    int visible_end_x = std::min(MAP_WIDTH , start_x + width - 2);
 
     for (int i = visible_start_y; i < visible_end_y; ++i)
     {
