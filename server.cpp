@@ -335,11 +335,12 @@ void *playerThreadFunction(void *args)
 
             buffer[bytesRead] = '\0';
             std::string message(buffer);
-
+            std::string new_message = Playerargs->gameManager->server->clients[Playerargs->clientFd].username + " " + message;
+            std::cout << new_message << "\n";
             std::cout << udpSocket << " " << buffer << "\n";
 
             // Handle the received message
-            Playerargs->gameManager->broadcastMessageExceptYourself(playerId, message, udpSocket, Playerargs->roomId);
+            Playerargs->gameManager->broadcastMessageExceptYourself(playerId, new_message, udpSocket, Playerargs->roomId);
             std::stringstream ss(message);
             int y, x, id;
             ss >> id >> y >> x;

@@ -847,6 +847,7 @@ void Splix_Window::exit_game(int flag)
 void Status_Window::display_player_status(const char *mode, Player player)
 {
     // Update the status window
+    curs_set(0);
     wattron(win, A_BOLD);
     mvwprintw(win, 1, 1, "Status");
     mvwprintw(win, 2, 1, "Score: %d", player.score);
@@ -899,6 +900,9 @@ void Status_Window::update_timer(int acceleration_timer, int cooldown_timer)
 // Rank_Window functions
 void Ranking_Window::update_ranking(std::vector<Player> players)
 {
+    clean();
+    draw();
+    curs_set(0);
     wattron(win, A_BOLD);
     mvwprintw(win, 1, (width - 4) / 2, "Rank");
     wattroff(win, A_BOLD);

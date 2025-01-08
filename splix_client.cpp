@@ -71,9 +71,9 @@ void unbox(int &id, std::pair<int, int> &head, char *username, std::string str)
 {
     std::stringstream ss(str);
     std::string token;
+    ss >> username;
     ss >> token;
     id = std::stoi(token);
-    ss >> username;
     ss >> token;
     head.first = std::stoi(token);
     ss >> token;
@@ -113,7 +113,7 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
     std::vector<Player> players(10);
     for (int i = 0; i < 10; i++)
     {
-        players[i].id = i + 1;
+        players[i].init({0, 0}, {0, 0}, i + 1, Mode::NORMAL, 0, 0, 0);
     }
     std::set<int> id_set;
 
@@ -159,8 +159,9 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
     stat_win->draw();
     stat_win->display_player_status("NORMAL", player);
     stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
-    rank_win->draw();
     wrefresh(stat_win->win);
+
+    rank_win->draw();
     rank_win->update_ranking(players);
     // Start the ticker
     GameTicker ticker_slow(5);
@@ -222,6 +223,8 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
                     }
                 }
                 map[head.first][head.second] = id;
+                players[id - 1].coordinate_y = head.first;
+                players[id - 1].coordinate_x = head.second;
             }
             splix_win->render_game(head.first, head.second, player);
             rank_win->update_ranking(players);
@@ -350,8 +353,12 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
                 {
                     int target_id = map[player.coordinate_y][player.coordinate_x];
                     delete_id(id_set, target_id);
+                    players[target_id - 1].score = 0;
+                    memset(players[target_id - 1].name, 0, sizeof(players[target_id - 1].name));
                 }
                 map[player.coordinate_y][player.coordinate_x] = player.id;
+                players[player.id - 1].coordinate_y = player.coordinate_y;
+                players[player.id - 1].coordinate_x = player.coordinate_x;
             }
             rank_win->update_ranking(players);
             splix_win->render_game(player.coordinate_y, player.coordinate_x, player);
