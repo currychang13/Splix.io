@@ -130,10 +130,11 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
 
     int cli_id;
     std::pair<int, int> position;
-    udp.get_other_users_info(players);
+    // udp.get_other_users_info(players);
     udp.get_initial_data(cli_id, position);
     player.init(position, {0, 1}, cli_id, Mode::NORMAL, acc_time, 0, 0);
-    players[cli_id - 1] = player;
+
+    players[cli_id - 1].init(position, {0, 1}, cli_id, Mode::NORMAL, acc_time, 0, 0);
     strcpy(players[cli_id - 1].name, player.name);
     update_idset_and_score_and_map(players, id_set);
     id_set.insert(cli_id);
@@ -161,8 +162,8 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
     stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
     wrefresh(stat_win->win);
 
-    rank_win->draw();
-    rank_win->update_ranking(players);
+    // rank_win->draw();
+    // rank_win->update_ranking(players);
     // Start the ticker
     GameTicker ticker_slow(5);
     GameTicker ticker_normal(15);
@@ -180,7 +181,6 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
             int id; // the subject
             char username[20];
             unbox(id, head, username, cur_str);
-
             // if new player
             if (id_set.count(id) == 0)
             {
@@ -195,6 +195,8 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
                 delete_id(id_set, id);
                 players[id - 1].score = 0;
                 memset(players[id - 1].name, 0, sizeof(players[id - 1].name));
+                // std::cerr << players[id - 1].score;
+                // sleep(2);
             }
             // judge if circled
             else if (map[head.first][head.second] == -id)
@@ -227,7 +229,7 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
                 players[id - 1].coordinate_x = head.second;
             }
             splix_win->render_game(head.first, head.second, player);
-            rank_win->update_ranking(players);
+            // rank_win->update_ranking(players);
         }
 #endif
 
@@ -360,9 +362,10 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
                 players[player.id - 1].coordinate_y = player.coordinate_y;
                 players[player.id - 1].coordinate_x = player.coordinate_x;
             }
-            rank_win->update_ranking(players);
-            splix_win->render_game(player.coordinate_y, player.coordinate_x, player);
+            // rank_win->update_ranking(players);
+            // splix_win->render_game(player.coordinate_y, player.coordinate_x, player);
         }
+        splix_win->render_game(player.coordinate_y, player.coordinate_x, player);
     }
 #ifndef DEBUG
     pthread_cancel(server_thread);

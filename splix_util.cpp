@@ -585,6 +585,7 @@ void Input_Window::get_user_input()
 
 void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player)
 {
+    curs_set(0);
     int half_rows = height / 2;
     int half_cols = width / 2;
 
@@ -605,8 +606,8 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player
 
     int visible_start_y = std::max(0, start_y);
     int visible_start_x = std::max(0, start_x);
-    int visible_end_y = std::min(MAP_HEIGHT , start_y + height - 2);
-    int visible_end_x = std::min(MAP_WIDTH , start_x + width - 2);
+    int visible_end_y = std::min(MAP_HEIGHT, start_y + height - 2);
+    int visible_end_x = std::min(MAP_WIDTH, start_x + width - 2);
 
     for (int i = visible_start_y; i < visible_end_y; ++i)
     {
@@ -978,7 +979,7 @@ void UdpContent::get_initial_data(int &id, std::pair<int, int> &position)
     char message[BUFFER_SIZE] = "";
     char fuck[BUFFER_SIZE] = "";
     recv(sockfd, message, BUFFER_SIZE, 0);
-    sscanf(message, "%d %15s %d %d", &id, fuck, &position.first, &position.second);
+    sscanf(message, "%20s %d  %d %d", fuck, &id, &position.first, &position.second);
 }
 void UdpContent::send_leave_game()
 {

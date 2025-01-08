@@ -71,7 +71,7 @@ struct Player
     struct sockaddr *addr;
     socklen_t len;
     int playerId;
-    int  userName;
+    std::string userName;
     int TcpFd;
     static int nextPlayerId; // Newly added field for tracking next player ID
     Player() : udpSocket(-1) {};
@@ -238,15 +238,16 @@ void *playerThreadFunction(void *args)
         start_x = MIN_DISTANCE_FROM_WALL + rand() % (MAP_WIDTH - 2 * MIN_DISTANCE_FROM_WALL);
         start_y = MIN_DISTANCE_FROM_WALL + rand() % (MAP_HEIGHT - 2 * MIN_DISTANCE_FROM_WALL);
     }
-    std::string bigPresent = "";
-    for (const auto &[username , allPlayer] : Playerargs->gameManager->gameStates[Playerargs->roomId].players)
-    {
-        bigPresent += allPlayer.userName + allPlayer.playerId;
-    }
-    std::cout << bigPresent << "\n";
-    sendto(udpSocket, bigPresent.c_str(), bigPresent.length(), 0, (struct sockaddr *)&cliaddr, clilen);
+    // std::string bigPresent = "";
+    // for (const auto &[username, allPlayer] : Playerargs->gameManager->gameStates[Playerargs->roomId].players)
+    // {
+    //     bigPresent += allPlayer.userName + " " + std::to_string(allPlayer.playerId) + " ";
+    // }
+    // // when new player join
+    // std::cout << "bigPresent: " << bigPresent << "\n";
+    // sendto(udpSocket, bigPresent.c_str(), bigPresent.length(), 0, (struct sockaddr *)&cliaddr, clilen);
     std::string userName = Playerargs->gameManager->server->clients[Playerargs->clientFd].username;
-    std::string IdUsernamePosition = std::to_string(playerId) + " " + userName + " " + std::to_string(start_y) + " " + std::to_string(start_x);
+    std::string IdUsernamePosition = userName + " " + std::to_string(playerId) + " " + std::to_string(start_y) + " " + std::to_string(start_x);
     Playerargs->gameManager->broadcastMessage(playerId, IdUsernamePosition, udpSocket, Playerargs->roomId);
     srand(time(NULL) + udpSocket); // Seed with current time and clientFd for uniqueness
 
@@ -304,7 +305,7 @@ void *playerThreadFunction(void *args)
         if (activity < 0)
         {
             perror("select error");
-            //Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
+            // Playerargs->gameManager->handlePlayerDeath(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
             return nullptr;
         }
         else if (activity == 0)
