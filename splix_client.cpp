@@ -166,20 +166,21 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
     // rank_win->update_ranking(players);
     // Start the ticker
     GameTicker ticker_slow(5);
-    GameTicker ticker_normal(15);
-    GameTicker ticker_fast(45);
+    GameTicker ticker_normal(10);
+    GameTicker ticker_fast(30);
     while (true)
     {
 #ifndef DEBUG
+        std::pair<int, int> head = {-1, -1};
+        int id; // the subject
+        char username[20] = "";
         if (!message_queue.empty())
         {
             pthread_mutex_lock(&queue_mutex);
             std::string cur_str = message_queue.front();
             message_queue.pop();
             pthread_mutex_unlock(&queue_mutex);
-            std::pair<int, int> head;
-            int id; // the subject
-            char username[20];
+
             unbox(id, head, username, cur_str);
             // if new player
             if (id_set.count(id) == 0)
@@ -232,7 +233,6 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
             // rank_win->update_ranking(players);
         }
 #endif
-
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
             (player.mode == Mode::FAST && ticker_fast.is_tick_due()) || (ticker_slow.is_tick_due() && player.mode == Mode::SLOW))
         {
@@ -363,9 +363,9 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
                 players[player.id - 1].coordinate_x = player.coordinate_x;
             }
             // rank_win->update_ranking(players);
-            // splix_win->render_game(player.coordinate_y, player.coordinate_x, player);
+            splix_win->render_game(head.first, head.second, player);
         }
-        splix_win->render_game(player.coordinate_y, player.coordinate_x, player);
+        splix_win->render_game(head.first, head.second, player);
     }
 #ifndef DEBUG
     pthread_cancel(server_thread);
