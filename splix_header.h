@@ -70,6 +70,7 @@ public:
     Mode mode = Mode::NORMAL;
     int acceleration_timer = acc_time;
     int cooldown_timer = 0;
+    int occupy = -id;
     void init(std::pair<int, int> position, std::pair<int, int> direction, int id, Mode mode, int acceleration_timer, int cooldown_timer, int score);
 };
 
@@ -232,12 +233,11 @@ public:
     std::vector<std::vector<int>> previous_map;
     Splix_Window(int height, int width, int starty, int startx) : Window(height, width, starty, startx) {}
     void create_initial_territory(int coordinate_y, int coordinate_x, int id);
-    void render_game(int coordinate_y, int coordinate_x, Player player);
+    void render_game(Player player);
     void exit_game(int flag);
     bool is_enclosure(int coordinate_y, int coordinate_x, int id);
     std::vector<std::pair<int, int>> find_inside_points(int id);
-    void fill_player_territory(const std::vector<std::pair<int, int>> &inside_points, Player &player);
-    void fill_players_territory(const std::vector<std::pair<int, int>> &inside_points, std::vector<Player> &players, int id);
+    void fill_players_territory(const std::vector<std::pair<int, int>> &inside_points, int id);
     std::vector<std::pair<int, int>> Heads;
 };
 

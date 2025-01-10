@@ -583,7 +583,7 @@ void Input_Window::get_user_input()
     }
 }
 
-void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player)
+void Splix_Window::render_game(Player player)
 {
     curs_set(0);
     int half_rows = height / 2;
@@ -630,17 +630,17 @@ void Splix_Window::render_game(int coordinate_y, int coordinate_x, Player player
                 color_pair = (-1 * value) % 10;
                 symbol = L"■";
             }
-            else if (value > 0)
+            else if (value > 0 && value <= 10000)
             {
                 color_pair = (value % 10);
                 symbol = L"▪";
             }
-            if ((map_y == coordinate_y && map_x == coordinate_x) || (map_y == player.coordinate_y && map_x == player.coordinate_x))
+            if (value > 10000)
             {
-                if (value < 0) // walk on territory
-                    color_pair = (-1 * value) % 10;
-                else
-                    color_pair = value % 10;
+                // if (value < 0) // walk on territory
+                //     color_pair = (-1 * value) % 10;
+                // else
+                color_pair = value % 10;
                 symbol = L"◯";
             }
             wattron(win, COLOR_PAIR(color_pair));
@@ -664,9 +664,12 @@ void Splix_Window::create_initial_territory(int coordinate_y, int coordinate_x, 
         for (int j = 0; j < 5; j++)
         {
             int cur_y = coordinate_y + dy[j];
-            if (map[cur_y][cur_x] == -id || cur_x < 0 || cur_x >= MAP_WIDTH || cur_y < 0 || cur_y >= MAP_HEIGHT)
+            if (map[cur_y][cur_x] == -id || cur_x < 0 || cur_x >= MAP_WIDTH - 2 || cur_y < 0 || cur_y >= MAP_HEIGHT - 2)
                 continue;
-            map[cur_y][cur_x] = -id;
+            if (cur_x == coordinate_x && cur_y == coordinate_y)
+                map[cur_y][cur_x] = id + 10000;
+            else
+                map[cur_y][cur_x] = -id;
         }
     }
 }
@@ -794,20 +797,11 @@ std::vector<std::pair<int, int>> Splix_Window::find_inside_points(int id)
     return inside_points;
 }
 
-void Splix_Window::fill_player_territory(const std::vector<std::pair<int, int>> &inside_points, Player &player)
-{
-    for (const auto &[y, x] : inside_points)
-    {
-        map[y][x] = -player.id;
-        player.score++;
-    }
-}
-void Splix_Window::fill_players_territory(const std::vector<std::pair<int, int>> &inside_points, std::vector<Player> &players, int id)
+void Splix_Window::fill_players_territory(const std::vector<std::pair<int, int>> &inside_points, int id)
 {
     for (const auto &[y, x] : inside_points)
     {
         map[y][x] = -id;
-        players[id - 1].score++;
     }
 }
 void Splix_Window::exit_game(int flag)
@@ -853,7 +847,7 @@ void Status_Window::display_player_status(const char *mode, Player player)
     mvwprintw(win, 1, 1, "Status");
     mvwprintw(win, 2, 1, "Score: %d", player.score);
     mvwprintw(win, 3, 1, "                     ");
-    mvwprintw(win, 3, 1, "Position: (%d, %d)", player.coordinate_y, player.coordinate_x);
+    mvwprintw(win, 3, 1, "Position: (%d, %d)", player.coordinate_x, player.coordinate_y);
     mvwprintw(win, 4, 1, "                   ");
     mvwprintw(win, 4, 1, "Mode: %s", mode);
     wattroff(win, A_BOLD);
@@ -901,8 +895,6 @@ void Status_Window::update_timer(int acceleration_timer, int cooldown_timer)
 // Rank_Window functions
 void Ranking_Window::update_ranking(std::vector<Player> players)
 {
-    clean();
-    draw();
     curs_set(0);
     wattron(win, A_BOLD);
     mvwprintw(win, 1, (width - 4) / 2, "Rank");
@@ -913,6 +905,7 @@ void Ranking_Window::update_ranking(std::vector<Player> players)
     int row = 3;
     for (int i = 0; i < players.size(); i++)
     {
+        mvwprintw(win, row, 1, "                       ");
         if (players[i].score == 0)
             break;
         mvwprintw(win, row, 1, "#%d  %s  %d", i + 1, players[i].name, players[i].score);
@@ -999,12 +992,14 @@ void UdpContent::get_other_users_info(std::vector<Player> &players)
     buffer[n] = '\0';
     std::stringstream ss(buffer);
     std::string tokenid, tokenname;
-    while (ss >> tokenid >> tokenname)
+    while (ss >> tokenname >> tokenid)
     {
         int id;
         std::string name;
         id = std::stoi(tokenid);
         name = tokenname;
+        // std::cerr << "\nid:" << id << "name:" << name << std::endl;
+        // sleep(1);
         strcpy(players[id - 1].name, name.c_str());
     }
 }
@@ -1079,6 +1074,7 @@ void TcpContent::send_return_to_room_selection()
     sprintf(message, "Return to Room Selection");
     write(sockfd, message, strlen(message));
 }
+
 void TcpContent::send_start()
 {
     write(sockfd, "start", 5);

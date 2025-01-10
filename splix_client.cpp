@@ -54,6 +54,25 @@ void update_idset_and_score_and_map(std::vector<Player> &players, std::set<int> 
     }
 }
 
+void update_score(std::vector<Player> &players)
+{
+    for (int i = 0; i < 10; i++)
+    {
+        players[i].score = 0;
+    }
+    for (int i = 0; i < MAP_HEIGHT; i++)
+    {
+        for (int j = 0; j < MAP_WIDTH; j++)
+        {
+            if (map[i][j] < 0)
+            {
+                int id = -map[i][j];
+                players[id - 1].score++;
+            }
+        }
+    }
+}
+
 void delete_id(std::set<int> &id_set, int id)
 {
     id_set.erase(id);
@@ -61,7 +80,7 @@ void delete_id(std::set<int> &id_set, int id)
     {
         for (int j = 0; j < MAP_WIDTH; j++)
         {
-            if (map[i][j] == id || map[i][j] == -id)
+            if (map[i][j] == id || map[i][j] == -id || map[i][j] == id + 10000)
                 map[i][j] = 0;
         }
     }
@@ -75,9 +94,25 @@ void unbox(int &id, std::pair<int, int> &head, char *username, std::string str)
     ss >> token;
     id = std::stoi(token);
     ss >> token;
-    head.first = std::stoi(token);
+    if (token[0] == '-')
+    {
+        token = token.substr(1);
+        head.first = -std::stoi(token);
+    }
+    else
+    {
+        head.first = std::stoi(token);
+    }
     ss >> token;
-    head.second = std::stoi(token);
+    if (token[0] == '-')
+    {
+        token = token.substr(1);
+        head.second = -std::stoi(token);
+    }
+    else
+    {
+        head.second = std::stoi(token);
+    }
 }
 
 void *listen_to_server(void *arg)
@@ -130,7 +165,7 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
 
     int cli_id;
     std::pair<int, int> position;
-    // udp.get_other_users_info(players);
+    udp.get_other_users_info(players);
     udp.get_initial_data(cli_id, position);
     player.init(position, {0, 1}, cli_id, Mode::NORMAL, acc_time, 0, 0);
 
@@ -155,15 +190,15 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
     splix_win->create_initial_territory(player.coordinate_y, player.coordinate_x, player.id); // server broadcast the position
     player.score = 25;
     players[player.id - 1].score = player.score;
-    splix_win->render_game(player.coordinate_y, player.coordinate_x, player);
+    splix_win->render_game(player);
 
     stat_win->draw();
     stat_win->display_player_status("NORMAL", player);
     stat_win->update_timer(player.acceleration_timer, player.cooldown_timer);
     wrefresh(stat_win->win);
 
-    // rank_win->draw();
-    // rank_win->update_ranking(players);
+    rank_win->draw();
+    rank_win->update_ranking(players);
     // Start the ticker
     GameTicker ticker_slow(5);
     GameTicker ticker_normal(10);
@@ -171,6 +206,7 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
     while (true)
     {
 #ifndef DEBUG
+        curs_set(0);
         std::pair<int, int> head = {-1, -1};
         int id; // the subject
         char username[20] = "";
@@ -188,49 +224,59 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
                 splix_win->create_initial_territory(head.first, head.second, id);
                 id_set.insert(id);
                 players[id - 1].score = 25;
+                players[id - 1].occupy = -id;
                 strcpy(players[id - 1].name, username);
-            }
-            // he touch boundary
-            if (head.first < 0 || head.first > MAP_HEIGHT - 2 || head.second < 0 || head.second > MAP_WIDTH - 2 || map[head.first][head.second] == id)
-            {
-                delete_id(id_set, id);
-                players[id - 1].score = 0;
-                memset(players[id - 1].name, 0, sizeof(players[id - 1].name));
-                // std::cerr << players[id - 1].score;
-                // sleep(2);
-            }
-            // judge if circled
-            else if (map[head.first][head.second] == -id)
-            {
-                if (splix_win->is_enclosure(head.first, head.second, id))
-                {
-                    auto inside_points = splix_win->find_inside_points(id);
-                    splix_win->fill_players_territory(inside_points, players, id);
-                }
             }
             else
             {
-                if (map[head.first][head.second] > 0) // someone die
+                int prev_y = players[id - 1].coordinate_y;
+                int prev_x = players[id - 1].coordinate_x;
+                int dest = map[head.first][head.second];
+                // he touch boundary
+                if (head.first < 0 || head.first >= MAP_HEIGHT - 2 || head.second < 0 || head.second >= MAP_WIDTH - 2 || map[head.first][head.second] == id)
                 {
-                    int target_id = map[head.first][head.second];
-                    if (target_id == player.id) // you die
-                    {
-                        splix_win->exit_game(0);
-                        return true;
-                    }
-                    else // he kill
-                    {
-                        delete_id(id_set, target_id);
-                        players[target_id - 1].score = 0;
-                        memset(players[id - 1].name, 0, sizeof(players[id - 1].name));
-                    }
+                    delete_id(id_set, id);
+                    players[id - 1].score = 0;
+                    memset(players[id - 1].name, 0, sizeof(players[id - 1].name));
                 }
-                map[head.first][head.second] = id;
-                players[id - 1].coordinate_y = head.first;
-                players[id - 1].coordinate_x = head.second;
+                else
+                {
+                    if (players[id - 1].occupy == -id)
+                        map[prev_y][prev_x] = -id;
+                    else
+                        map[prev_y][prev_x] = id;
+
+                    // judge if circled
+                    if (dest == -id)
+                    {
+                        if (splix_win->is_enclosure(head.first, head.second, id))
+                        {
+                            auto inside_points = splix_win->find_inside_points(id);
+                            splix_win->fill_players_territory(inside_points, id);
+                        }
+                    }
+                    else if (dest > 0) // someone die
+                    {
+                        if (dest == player.id) // you die
+                        {
+                            splix_win->exit_game(0);
+                            return true;
+                        }
+                        else // he kill
+                        {
+                            delete_id(id_set, dest);
+                            players[dest - 1].score = 0;
+                            memset(players[dest - 1].name, 0, sizeof(players[dest - 1].name));
+                        }
+                    }
+                    players[id - 1].occupy = dest;
+                    map[head.first][head.second] = id + 10000;
+                    players[id - 1].coordinate_y = head.first;
+                    players[id - 1].coordinate_x = head.second;
+                }
             }
-            splix_win->render_game(head.first, head.second, player);
-            // rank_win->update_ranking(players);
+            update_score(players);
+            splix_win->render_game(player);
         }
 #endif
         if ((player.mode == Mode::NORMAL && ticker_normal.is_tick_due()) ||
@@ -321,6 +367,8 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
                 }
             }
             // Update position
+            int prev_y = player.coordinate_y;
+            int prev_x = player.coordinate_x;
             player.coordinate_y += player.direction.first;
             player.coordinate_x += player.direction.second;
             stat_win->display_player_status((player.mode == Mode::FAST) ? "BURST" : (player.mode == Mode::NORMAL) ? "NORMAL"
@@ -332,40 +380,46 @@ bool game_loop(Splix_Window *splix_win, Status_Window *stat_win, Ranking_Window 
 #ifndef DEBUG
             udp.send_server_position(player);
 #endif
+            int destination = map[player.coordinate_y][player.coordinate_x];
             // Check if the player dies from going out of bounds
             if (player.coordinate_y < 0 || player.coordinate_y >= MAP_HEIGHT - 2 || player.coordinate_x < 0 || player.coordinate_x >= MAP_WIDTH - 2 || map[player.coordinate_y][player.coordinate_x] == player.id)
             {
                 splix_win->exit_game(0); // die
                 return true;
             }
-            // Handle territory and update map
-            else if (map[player.coordinate_y][player.coordinate_x] == -player.id)
-            {
-                if (splix_win->is_enclosure(player.coordinate_y, player.coordinate_x, player.id))
-                {
-                    auto inside_points = splix_win->find_inside_points(player.id);
-                    splix_win->fill_player_territory(inside_points, player);
-                    players[player.id - 1].score = player.score;
-                }
-            }
-            // player kill
             else
             {
-                if (map[player.coordinate_y][player.coordinate_x] > 0)
+                if (player.occupy == -player.id)
+                    map[prev_y][prev_x] = -player.id;
+                else
+                    map[prev_y][prev_x] = player.id;
+                // Handle territory and update map
+                if (destination == -player.id)
                 {
-                    int target_id = map[player.coordinate_y][player.coordinate_x];
-                    delete_id(id_set, target_id);
-                    players[target_id - 1].score = 0;
-                    memset(players[target_id - 1].name, 0, sizeof(players[target_id - 1].name));
+                    if (splix_win->is_enclosure(player.coordinate_y, player.coordinate_x, player.id))
+                    {
+                        auto inside_points = splix_win->find_inside_points(player.id);
+                        splix_win->fill_players_territory(inside_points, player.id);
+                    }
                 }
-                map[player.coordinate_y][player.coordinate_x] = player.id;
-                players[player.id - 1].coordinate_y = player.coordinate_y;
-                players[player.id - 1].coordinate_x = player.coordinate_x;
+                // player kill
+                else
+                {
+                    if (destination > 0)
+                    {
+                        int target_id = map[player.coordinate_y][player.coordinate_x];
+                        delete_id(id_set, target_id);
+                        players[target_id - 1].score = 0;
+                        memset(players[target_id - 1].name, 0, sizeof(players[target_id - 1].name));
+                    }
+                }
+                player.occupy = destination;
+                map[player.coordinate_y][player.coordinate_x] = player.id + 10000;
             }
-            // rank_win->update_ranking(players);
-            splix_win->render_game(head.first, head.second, player);
         }
-        splix_win->render_game(head.first, head.second, player);
+        update_score(players);
+        rank_win->update_ranking(players);
+        splix_win->render_game(player);
     }
 #ifndef DEBUG
     pthread_cancel(server_thread);
@@ -527,7 +581,7 @@ int main()
                     else
                     {
                         status = GameStatus::ROOM_SELECTION;
-                        // tcp.send_return_to_room_selection();
+                        tcp.send_return_to_room_selection();
                         break;
                     }
                 }
@@ -587,7 +641,6 @@ int main()
             rank_win.clean();
             echo();
             break;
-
         case GameStatus::GAME_OVER:
             // show game over
             curs_set(0);
