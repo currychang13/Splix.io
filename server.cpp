@@ -329,10 +329,12 @@ void *playerThreadFunction(void *args)
             ssize_t bytesRead = recvfrom(udpSocket, buffer, sizeof(buffer) - 1, 0, (struct sockaddr *)&cliaddr, &clilen);
             if (bytesRead <= 0)
             {
-                std::string heDied = std::to_string(playerId) + " -1 -1";
-                std::string new_heDied = "leave " + heDied;
-                Playerargs->gameManager->broadcastMessageExceptYourself(playerId, new_heDied, udpSocket, Playerargs->roomId);
-                Playerargs->gameManager->handlePlayerDisconnection(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
+                // std::cout << "player:" << playerId << " disconnected\n";
+                // std::cout << "bytesRead:" << bytesRead << std::endl;
+                // std::string heDied = std::to_string(playerId) + " -1 -1";
+                // std::string new_heDied = "leave " + heDied;
+                // Playerargs->gameManager->broadcastMessageExceptYourself(playerId, new_heDied, udpSocket, Playerargs->roomId);
+                // Playerargs->gameManager->handlePlayerDisconnection(playerId, Playerargs->roomId, udpSocket, Playerargs->clientFd);
                 return nullptr;
             }
 
@@ -450,7 +452,7 @@ void GameManager::handlePlayerDisconnection(int playerId, int roomId, int udpSoc
     auto playerIt = gameState.players.find(udpSocket);
     if (playerIt == gameState.players.end())
     {
-        std::cerr << "Player not found for udpsocket " << udpSocket << " while handling death.\n";
+        std::cerr << "Player not found for udpsocket " << udpSocket << " while handling disconnection.\n";
         pthread_mutex_unlock(&gameMutex);
         return;
     }
